@@ -1,0 +1,73 @@
+[gd_scene format=3 uid="uid://x48t3bixnrlq"]
+
+[ext_resource type="PackedScene" uid="uid://bfyw8tk8ig0wj" path="res://Vista/Bloques/bloque_base.tscn" id="1_6nurc"]
+[ext_resource type="Script" uid="uid://cf0m8sy7dbxaa" path="res://Vista/Bloques/bloque_control.gd" id="2_0q57t"]
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_0q57t"]
+bg_color = Color(0.11372549, 0.48235294, 0.9098039, 1)
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_g4v7s"]
+content_margin_left = 10.0
+content_margin_top = 10.0
+content_margin_right = 10.0
+content_margin_bottom = 10.0
+bg_color = Color(0.15294118, 0.74509805, 0.2, 0.7372549)
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_yf5fn"]
+content_margin_left = 10.0
+content_margin_top = 10.0
+content_margin_right = 10.0
+content_margin_bottom = 10.0
+bg_color = Color(0.8352941, 0, 0, 0.7254902)
+
+[node name="BloqueControl" unique_id=1348640134 node_paths=PackedStringArray("contenedor_parametros", "rama_verdadera", "rama_falsa", "boton_agregar_verdadero", "boton_agregar_falso") instance=ExtResource("1_6nurc")]
+theme_override_styles/panel = SubResource("StyleBoxFlat_0q57t")
+script = ExtResource("2_0q57t")
+contenedor_parametros = NodePath("ContenedorPrincipal/ContenedorParametros")
+rama_verdadera = NodePath("ContenedorPrincipal/Bifurcación/LadoVerdadero/RamaVerdadera")
+rama_falsa = NodePath("ContenedorPrincipal/Bifurcación/LadoFalso/RamaFalsa")
+boton_agregar_verdadero = NodePath("ContenedorPrincipal/Bifurcación/LadoVerdadero/RamaVerdadera/BotonAgregarSI")
+boton_agregar_falso = NodePath("ContenedorPrincipal/Bifurcación/LadoFalso/RamaFalsa/BotonAgregarSINO")
+
+[node name="ContenedorParametros" type="VBoxContainer" parent="ContenedorPrincipal" parent_id_path=PackedInt32Array(2134730313) index="1" unique_id=1828599630]
+layout_mode = 2
+
+[node name="Bifurcación" type="HBoxContainer" parent="ContenedorPrincipal" parent_id_path=PackedInt32Array(2134730313) index="2" unique_id=708312041]
+layout_mode = 2
+
+[node name="LadoVerdadero" type="PanelContainer" parent="ContenedorPrincipal/Bifurcación" index="0" unique_id=1097252302]
+custom_minimum_size = Vector2(0, 40)
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_styles/panel = SubResource("StyleBoxFlat_g4v7s")
+
+[node name="RamaVerdadera" type="VBoxContainer" parent="ContenedorPrincipal/Bifurcación/LadoVerdadero" index="0" unique_id=1750521388]
+layout_mode = 2
+offset_transform_position = Vector2(25, 0)
+
+[node name="GuiaVerdad" type="Label" parent="ContenedorPrincipal/Bifurcación/LadoVerdadero/RamaVerdadera" index="0" unique_id=1917553055]
+layout_mode = 2
+text = "SI SE CUMPLE"
+horizontal_alignment = 1
+
+[node name="BotonAgregarSI" type="Button" parent="ContenedorPrincipal/Bifurcación/LadoVerdadero/RamaVerdadera" index="1" unique_id=2063360510]
+layout_mode = 2
+text = "[+ Añadir a SI]"
+
+[node name="LadoFalso" type="PanelContainer" parent="ContenedorPrincipal/Bifurcación" index="1" unique_id=1901078895]
+custom_minimum_size = Vector2(0, 40)
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_styles/panel = SubResource("StyleBoxFlat_yf5fn")
+
+[node name="RamaFalsa" type="VBoxContainer" parent="ContenedorPrincipal/Bifurcación/LadoFalso" index="0" unique_id=476144318]
+layout_mode = 2
+
+[node name="GuiaFalso" type="Label" parent="ContenedorPrincipal/Bifurcación/LadoFalso/RamaFalsa" index="0" unique_id=1981313877]
+layout_mode = 2
+text = "SI NO SE CUMPLE"
+horizontal_alignment = 1
+
+[node name="BotonAgregarSINO" type="Button" parent="ContenedorPrincipal/Bifurcación/LadoFalso/RamaFalsa" index="1" unique_id=393537254]
+layout_mode = 2
+text = "[+ Añadir a SI NO]"
