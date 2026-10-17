@@ -17,7 +17,7 @@ import java.util.List;
 public class JVMGabi {
 
     public static void main(String[] args)throws IOException {
-        List<String> programa = Files.readAllLines(Paths.get("C:\\Users\\Agustina\\OneDrive\\Documentos\\NetBeansProjects\\JVMGabi\\Documento.GabyCode.txt"));   
+        List<String> programa = Files.readAllLines(Paths.get("PruebaDeGaston.GabyCode"));   
         MaquinaVirtual vm = new MaquinaVirtual();
         vm.ejecutar(programa);
     }
