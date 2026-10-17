@@ -1,0 +1,13 @@
+PUSH 100
+STORE x
+
+PUSH 50
+STORE y
+
+LOAD x
+LOAD y
+
+CALL_HOST sumar 2
+
+PRINT
+HALT
