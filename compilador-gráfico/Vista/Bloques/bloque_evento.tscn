@@ -1,0 +1,11 @@
+[gd_scene format=3 uid="uid://cwuk8vsp7huw2"]
+
+[ext_resource type="PackedScene" uid="uid://bfyw8tk8ig0wj" path="res://Vista/Bloques/bloque_base.tscn" id="1_7161x"]
+[ext_resource type="Script" uid="uid://benkyvyaoqe04" path="res://Vista/Bloques/bloque_evento.gd" id="2_3wm6o"]
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_3wm6o"]
+bg_color = Color(0.2627451, 0.7764706, 0.29411766, 1)
+
+[node name="BloqueEvento" unique_id=1348640134 instance=ExtResource("1_7161x")]
+theme_override_styles/panel = SubResource("StyleBoxFlat_3wm6o")
+script = ExtResource("2_3wm6o")

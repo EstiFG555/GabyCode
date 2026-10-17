@@ -1,0 +1,39 @@
+[gd_scene format=3 uid="uid://bfyw8tk8ig0wj"]
+
+[ext_resource type="Script" uid="uid://drjtku1ufhwdd" path="res://Vista/Bloques/bloque_base.gd" id="1_1nsqj"]
+
+[node name="BloqueBase" type="PanelContainer" unique_id=1348640134 node_paths=PackedStringArray("label_titulo", "boton_eliminar", "boton_modificar")]
+custom_minimum_size = Vector2(200, 125)
+anchors_preset = 5
+anchor_left = 0.5
+anchor_right = 0.5
+offset_left = -100.0
+offset_right = 100.0
+offset_bottom = 125.0
+grow_horizontal = 2
+size_flags_horizontal = 4
+script = ExtResource("1_1nsqj")
+label_titulo = NodePath("ContenedorPrincipal/Cabecera/Titulo")
+boton_eliminar = NodePath("ContenedorPrincipal/Cabecera/BotónEliminar")
+boton_modificar = NodePath("ContenedorPrincipal/Cabecera/BotónModificar")
+
+[node name="ContenedorPrincipal" type="VBoxContainer" parent="." unique_id=2134730313]
+layout_mode = 2
+
+[node name="Cabecera" type="HBoxContainer" parent="ContenedorPrincipal" unique_id=251498420]
+clip_contents = true
+layout_mode = 2
+
+[node name="Titulo" type="Label" parent="ContenedorPrincipal/Cabecera" unique_id=1512480735]
+layout_mode = 2
+size_flags_horizontal = 3
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="BotónModificar" type="Button" parent="ContenedorPrincipal/Cabecera" unique_id=1010884333]
+layout_mode = 2
+text = "[Modificar Bloque]"
+
+[node name="BotónEliminar" type="Button" parent="ContenedorPrincipal/Cabecera" unique_id=1907766058]
+layout_mode = 2
+text = "X"

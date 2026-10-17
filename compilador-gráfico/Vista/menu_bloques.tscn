@@ -1,0 +1,27 @@
+[gd_scene format=3 uid="uid://bclt3n67spaci"]
+
+[ext_resource type="Script" uid="uid://cem4m1cgu4sur" path="res://Vista/menu_bloques.gd" id="1_3njyl"]
+
+[node name="MenuBloques" type="PopupPanel" unique_id=677266400 node_paths=PackedStringArray("contenedor_lista")]
+oversampling_override = 1.0
+size = Vector2i(258, 308)
+visible = true
+script = ExtResource("1_3njyl")
+contenedor_lista = NodePath("ScrollContainer/ContenedorLista")
+
+[node name="ScrollContainer" type="ScrollContainer" parent="." unique_id=464074815]
+custom_minimum_size = Vector2(250, 300)
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = 4.0
+offset_top = 4.0
+offset_right = -4.0
+offset_bottom = -4.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="ContenedorLista" type="VBoxContainer" parent="ScrollContainer" unique_id=1199118534]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
