@@ -1,0 +1,15 @@
+PUSH 100
+STORE x
+
+PUSH 50
+STORE y
+
+LOAD x
+LOAD y
+
+CALL_HOST sumar 2
+
+PRINT
+HALT
+
+Hola Agus, si estás viendo esto espero todo esté andando correctamente.
