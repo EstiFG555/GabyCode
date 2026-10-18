@@ -1,0 +1,12 @@
+C:\Users\facu\Desktop\COMPI\GabyCodeCompiler\src\main\java\gabycodecompilador\main.java
+C:\Users\facu\Desktop\COMPI\GabyCodeCompiler\src\main\java\gabycodecompiler\escritor\EscritorBytecode.java
+C:\Users\facu\Desktop\COMPI\GabyCodeCompiler\src\main\java\gabycodecompiler\generador\CodigoOperacion.java
+C:\Users\facu\Desktop\COMPI\GabyCodeCompiler\src\main\java\gabycodecompiler\generador\GeneradorBytecode.java
+C:\Users\facu\Desktop\COMPI\GabyCodeCompiler\src\main\java\gabycodecompiler\generador\Instruccion.java
+C:\Users\facu\Desktop\COMPI\GabyCodeCompiler\src\main\java\gabycodecompiler\lector\LectorJson.java
+C:\Users\facu\Desktop\COMPI\GabyCodeCompiler\src\main\java\gabycodecompiler\modelo\EntradaDato.java
+C:\Users\facu\Desktop\COMPI\GabyCodeCompiler\src\main\java\gabycodecompiler\modelo\Grafo.java
+C:\Users\facu\Desktop\COMPI\GabyCodeCompiler\src\main\java\gabycodecompiler\modelo\Nodo.java
+C:\Users\facu\Desktop\COMPI\GabyCodeCompiler\src\main\java\gabycodecompiler\modelo\SalidadEjecucion.java
+C:\Users\facu\Desktop\COMPI\GabyCodeCompiler\src\main\java\gabycodecompiler\semantico\AnalizadorSemantico.java
+C:\Users\facu\Desktop\COMPI\GabyCodeCompiler\src\main\java\gabycodecompiler\semantico\OrdenadorTopologico.java

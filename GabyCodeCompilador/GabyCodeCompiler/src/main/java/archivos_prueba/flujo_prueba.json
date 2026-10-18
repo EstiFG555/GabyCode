@@ -1,0 +1,89 @@
+{
+    "variables_locales": [ 
+        { 
+            "nombre": "ProductoActual", 
+            "tipo": 4 
+        } 
+    ], 
+    "nodos": [ 
+        { 
+            "id": 1, 
+            "tipo": "EVENTO", 
+            "operacion": "ON_PRODUCT_SCANNED", 
+            "salidas_ejecucion": [4], 
+            "datos_entrada": {} 
+        }, 
+        {
+            "id": 2, 
+            "tipo": "EXPRESION", 
+            "operacion": "GET_STOCK", 
+            "datos_entrada": { 
+                "producto": { 
+                    "fuente": "VARIABLE", 
+                    "nombre": "ProductoActual" 
+                } 
+            } 
+        }, 
+        { 
+            "id": 3, 
+            "tipo": "EXPRESION", 
+            "operacion": "LESS_THAN", 
+            "datos_entrada": { 
+                "valor_a": { 
+                    "fuente": "REFERENCIA_NODO", 
+                    "id_origen": 2, 
+                    "puerto": "resultado" 
+                }, 
+                "valor_b": { 
+
+                    "fuente": "LITERAL", 
+                    "valor": 5 
+                } 
+            } 
+        }, 
+        { 
+            "id": 4, 
+            "tipo": "CONTROL", 
+            "operacion": "IF_ELSE", 
+            "salidas_ejecucion": [5, 6], 
+            "datos_entrada": { 
+                "condicion": { 
+                    "fuente": "REFERENCIA_NODO", 
+                    "id_origen": 3, 
+                    "puerto": "resultado" 
+                } 
+            } 
+        }, 
+        { 
+            "id": 5, 
+            "tipo": "ACCION", 
+            "operacion": "SHOW_ALERT", 
+            "salidas_ejecucion": [], 
+            "datos_entrada": { 
+                "mensaje": { 
+                    "fuente": "LITERAL", 
+                    "valor": "Stock crítico, reponer urgente." 
+                } 
+            } 
+        }, 
+        { 
+            "id": 6, 
+            "tipo": "ACCION", 
+            "operacion": "APPLY_DISCOUNT", 
+            "salidas_ejecucion": [], 
+            "datos_entrada": { 
+                "producto": { 
+
+                    "fuente": "VARIABLE", 
+                    "nombre": "ProductoActual" 
+                }, 
+                "porcentaje": { 
+
+                    "fuente": "LITERAL", 
+                    "valor": 10 
+                } 
+            } 
+        } 
+
+    ] 
+}
