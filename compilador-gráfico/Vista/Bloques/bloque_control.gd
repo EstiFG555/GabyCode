@@ -86,6 +86,24 @@ func inicializar(id_asignado : int, titulo : String, entradas_esperadas : Dictio
 		fila.add_child(literal_input)
 		contenedor_parametros.add_child(fila)
 
+# Adapta las columnas según si es condicional (IF_ELSE) o iterativo (WHILE)
+func configurar_modo_control(operacion_host: StringName) -> void:
+	var lado_falso_panel := rama_falsa.get_parent() as Control
+	var guia_verdad := rama_verdadera.get_node_or_null("GuiaVerdad") as Label
+	
+	if operacion_host == &"WHILE":
+		if lado_falso_panel: lado_falso_panel.hide()
+		if guia_verdad: guia_verdad.text = "REPETIR MIENTRAS SE CUMPLA"
+		if boton_agregar_verdadero: boton_agregar_verdadero.text = "[+ Añadir al Bucle]"
+	elif operacion_host == &"FOREACH":
+		if lado_falso_panel: lado_falso_panel.hide()
+		if guia_verdad: guia_verdad.text = "REPETIR PARA CADA ELEMENTO"
+		if boton_agregar_verdadero: boton_agregar_verdadero.text = "[+ Añadir al ForEach]"
+	else:
+		if lado_falso_panel: lado_falso_panel.show()
+		if guia_verdad: guia_verdad.text = "SI SE CUMPLE"
+		if boton_agregar_verdadero: boton_agregar_verdadero.text = "[+ Añadir a SI]"
+
 func _on_agregar_verdadero() -> void:
 	solicitar_insercion_rama.emit(id_logico, &"id_rama_verdadera")
 

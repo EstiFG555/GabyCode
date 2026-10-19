@@ -1,0 +1,21 @@
+{
+	"nodos": [
+		{
+			"datos_entrada": {},
+			"id": 1,
+			"operacion": "ON_PRODUCT_SCANNED",
+			"salidas_ejecucion": [
+				2
+			],
+			"tipo": "EVENTO"
+		},
+		{
+			"datos_entrada": {},
+			"id": 2,
+			"operacion": "APPLY_DISCOUNT",
+			"salidas_ejecucion": [],
+			"tipo": "ACCION"
+		}
+	],
+	"variables_locales": []
+}

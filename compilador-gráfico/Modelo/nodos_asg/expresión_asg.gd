@@ -7,11 +7,9 @@ func _init() -> void:
 	categoria = GabyEnums.CategoriaNodo.EXPRESION
 
 func to_dict() -> Dictionary[StringName, Variant]:
-	var result : Dictionary[StringName, Variant] = {
+	return {
 		&"id" : id,
 		&"tipo" : "EXPRESION",
-		&"operación" : nombre_expresión,
-		# Usamos la variable estandarizada del padre
-		&"entradas_datos" : entradas_datos_conectadas 
+		&"operacion" : nombre_expresión,
+		&"datos_entrada" : entradas_datos_conectadas
 	}
-	return result
