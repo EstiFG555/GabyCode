@@ -9,19 +9,36 @@
  */
 package gabycodecompiler.generador;
 
+import com.google.gson.Gson;
 import gabycodecompiler.modelo.EntradaDato;
 import gabycodecompiler.modelo.Grafo;
 import gabycodecompiler.modelo.Nodo;
+import java.io.File;
+import java.io.FileReader;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
 public class GeneradorBytecode {
 
-    // Sobrecarga compatible con versiones previas
+    // Mapa con el orden oficial de parámetros leído de catalogo_host.json o por defecto
+    private static final Map<String, List<String>> ORDEN_PARAMETROS_HOST = new HashMap<>();
+
+    static {
+        ORDEN_PARAMETROS_HOST.put("APPLY_DISCOUNT", Arrays.asList("producto", "porcentaje"));
+        ORDEN_PARAMETROS_HOST.put("SHOW_ALERT", Arrays.asList("mensaje"));
+        ORDEN_PARAMETROS_HOST.put("GET_STOCK", Arrays.asList("producto"));
+        ORDEN_PARAMETROS_HOST.put("GET_PRODUCT_BY_ID", Arrays.asList("id_producto"));
+        ORDEN_PARAMETROS_HOST.put("CALCULATE_SALE_TOTAL", Arrays.asList("lista_productos"));
+        ORDEN_PARAMETROS_HOST.put("REGISTER_SALE", Arrays.asList("lista_productos", "total"));
+        ORDEN_PARAMETROS_HOST.put("SHOW_TOTAL", Arrays.asList("total"));
+    }
+
     public static List<Instruccion> generar(List<Nodo> nodos) {
         Grafo g = new Grafo();
         g.setNodos(nodos);
@@ -29,12 +46,52 @@ public class GeneradorBytecode {
     }
 
     public static List<Instruccion> generar(Grafo grafo) {
+        cargarOrdenDesdeCatalogoJson();
+
         List<Instruccion> instrucciones = new ArrayList<>();
         if (grafo == null || grafo.getNodos() == null || grafo.getNodos().isEmpty()) {
             return instrucciones;
         }
 
-        // 1. Mapa rápido de nodos por ID y detección de nodos cuyos datos son referenciados
+        // Registro de llamadas a subrutinas pendientes de enlazar (Backpatching de CALL)
+        List<Instruccion> llamadasSubrutinasPendientes = new ArrayList<>();
+        List<String> nombresSubrutinasLlamadas = new ArrayList<>();
+
+        compilarGrafoEnLista(grafo, instrucciones, false, llamadasSubrutinasPendientes, nombresSubrutinasLlamadas);
+
+        // Instrucción de cierre del programa principal
+        instrucciones.add(new Instruccion(CodigoOperacion.HALT));
+
+        // Enlazar y compilar las Subrutinas (Acciones Compuestas) invocadas al final del bytecode
+        Map<String, Integer> direccionesSubrutinas = new LinkedHashMap<>();
+        for (int i = 0; i < nombresSubrutinasLlamadas.size(); i++) {
+            String opSub = nombresSubrutinasLlamadas.get(i);
+            Instruccion instCall = llamadasSubrutinasPendientes.get(i);
+
+            if (!direccionesSubrutinas.containsKey(opSub)) {
+                Grafo grafoSub = cargarGrafoSubrutina(opSub);
+                if (grafoSub != null) {
+                    int dirInicio = instrucciones.size();
+                    direccionesSubrutinas.put(opSub, dirInicio);
+                    compilarGrafoEnLista(grafoSub, instrucciones, true, llamadasSubrutinasPendientes, nombresSubrutinasLlamadas);
+                    instrucciones.add(new Instruccion(CodigoOperacion.RET));
+                } else {
+                    direccionesSubrutinas.put(opSub, instrucciones.size() - 1);
+                }
+            }
+            instCall.setOperando(direccionesSubrutinas.get(opSub));
+        }
+
+        return instrucciones;
+    }
+
+    private static void compilarGrafoEnLista(
+            Grafo grafo,
+            List<Instruccion> instrucciones,
+            boolean esSubrutina,
+            List<Instruccion> llamadasSubrutinasPendientes,
+            List<String> nombresSubrutinasLlamadas) {
+
         Map<Integer, Nodo> mapaNodos = new HashMap<>();
         Set<Integer> nodosReferenciados = new HashSet<>();
 
@@ -49,20 +106,26 @@ public class GeneradorBytecode {
             }
         }
 
-        // 2. Cabecera: Inicializar todas las variables_locales declaradas por el usuario en la pila/memoria
+        // Inicialización de variables locales del scope actual
         if (grafo.getVariablesLocales() != null) {
-            for (Map<String, Object> varLocal : grafo.getVariablesLocales()) {
-                String nombre = String.valueOf(varLocal.get("nombre"));
-                Object valorInicial = varLocal.get("valor_inicial");
-                if (valorInicial == null) {
-                    valorInicial = 0;
+            if (esSubrutina) {
+                // En una subrutina, los valores iniciales provienen de los argumentos apilados antes de CALL (orden inverso LIFO)
+                for (int i = grafo.getVariablesLocales().size() - 1; i >= 0; i--) {
+                    Map<String, Object> varLocal = grafo.getVariablesLocales().get(i);
+                    String nombre = String.valueOf(varLocal.get("nombre"));
+                    instrucciones.add(new Instruccion(CodigoOperacion.STORE, nombre));
                 }
-                instrucciones.add(new Instruccion(CodigoOperacion.PUSH, formatearLiteral(valorInicial)));
-                instrucciones.add(new Instruccion(CodigoOperacion.STORE, nombre));
+            } else {
+                for (Map<String, Object> varLocal : grafo.getVariablesLocales()) {
+                    String nombre = String.valueOf(varLocal.get("nombre"));
+                    Object valorInicial = varLocal.get("valor_inicial");
+                    if (valorInicial == null) valorInicial = 0;
+                    instrucciones.add(new Instruccion(CodigoOperacion.PUSH, formatearLiteral(valorInicial)));
+                    instrucciones.add(new Instruccion(CodigoOperacion.STORE, nombre));
+                }
             }
         }
 
-        // 3. Buscar el Evento Raíz para comenzar la compilación del flujo temporal
         Nodo nodoEvento = null;
         for (Nodo n : grafo.getNodos()) {
             if ("EVENTO".equalsIgnoreCase(n.getTipo())) {
@@ -70,24 +133,23 @@ public class GeneradorBytecode {
                 break;
             }
         }
-        if (nodoEvento == null) {
+        if (nodoEvento == null && !grafo.getNodos().isEmpty()) {
             nodoEvento = grafo.getNodos().get(0);
         }
 
-        // 4. Compilar recursivamente el flujo de ejecución
-        compilarSecuencia(nodoEvento.getId(), mapaNodos, nodosReferenciados, instrucciones);
-
-        // 5. Instrucción de cierre del programa
-        instrucciones.add(new Instruccion(CodigoOperacion.HALT));
-
-        return instrucciones;
+        if (nodoEvento != null) {
+            compilarSecuencia(nodoEvento.getId(), mapaNodos, nodosReferenciados, instrucciones,
+                    llamadasSubrutinasPendientes, nombresSubrutinasLlamadas);
+        }
     }
 
     private static void compilarSecuencia(
             int idActual,
             Map<Integer, Nodo> mapaNodos,
             Set<Integer> nodosReferenciados,
-            List<Instruccion> instrucciones) {
+            List<Instruccion> instrucciones,
+            List<Instruccion> llamadasSubrutinasPendientes,
+            List<String> nombresSubrutinasLlamadas) {
 
         while (idActual > 0) {
             Nodo nodo = mapaNodos.get(idActual);
@@ -98,21 +160,20 @@ public class GeneradorBytecode {
 
             switch (tipo) {
                 case "EVENTO":
-                    // Si otros bloques leen la salida del evento (ej. ON_PRODUCT_SCANNED),
-                    // su valor provendrá de la variable de entorno "ProductoActual"
                     idActual = obtenerSalida(nodo, 0);
                     break;
 
                 case "CONTROL":
-                    compilarNodoControl(nodo, operacion, mapaNodos, nodosReferenciados, instrucciones);
-                    // En los nodos CONTROL, el índice 2 de salidas_ejecucion es el cable principal post-bloque
+                    compilarNodoControl(nodo, operacion, mapaNodos, nodosReferenciados, instrucciones,
+                            llamadasSubrutinasPendientes, nombresSubrutinasLlamadas);
                     idActual = obtenerSalida(nodo, 2);
                     break;
 
                 case "ACCION":
                 case "ACCIÓN":
                 default:
-                    compilarNodoAccion(nodo, operacion, mapaNodos, nodosReferenciados, instrucciones);
+                    compilarNodoAccion(nodo, operacion, mapaNodos, nodosReferenciados, instrucciones,
+                            llamadasSubrutinasPendientes, nombresSubrutinasLlamadas);
                     idActual = obtenerSalida(nodo, 0);
                     break;
             }
@@ -124,71 +185,59 @@ public class GeneradorBytecode {
             String operacion,
             Map<Integer, Nodo> mapaNodos,
             Set<Integer> nodosReferenciados,
-            List<Instruccion> instrucciones) {
+            List<Instruccion> instrucciones,
+            List<Instruccion> llamadasSubrutinasPendientes,
+            List<String> nombresSubrutinasLlamadas) {
 
         int idRamaVerdadera = obtenerSalida(nodo, 0);
         int idRamaFalsa = obtenerSalida(nodo, 1);
 
         if ("IF_ELSE".equals(operacion)) {
-            // 1. Evaluar la condición booleana
             EntradaDato cond = obtenerEntrada(nodo, "condicion");
             evaluarEntradaDato(cond, mapaNodos, instrucciones);
 
-            // 2. Emitir salto condicional si es falso (Backpatching)
             Instruccion jmpIfFalse = new Instruccion(CodigoOperacion.JMP_IF_FALSE, 0);
             instrucciones.add(jmpIfFalse);
 
-            // 3. Compilar la rama verdadera (SI)
             if (idRamaVerdadera > 0) {
-                compilarSecuencia(idRamaVerdadera, mapaNodos, nodosReferenciados, instrucciones);
+                compilarSecuencia(idRamaVerdadera, mapaNodos, nodosReferenciados, instrucciones,
+                        llamadasSubrutinasPendientes, nombresSubrutinasLlamadas);
             }
 
             if (idRamaFalsa > 0) {
-                // Emitir salto incondicional al final del IF para esquivar el ELSE
                 Instruccion jmpFinIf = new Instruccion(CodigoOperacion.JMP, 0);
                 instrucciones.add(jmpFinIf);
 
-                // El ELSE comienza exactamente en el índice actual
                 jmpIfFalse.setOperando(instrucciones.size());
 
-                // 4. Compilar la rama falsa (SI NO)
-                compilarSecuencia(idRamaFalsa, mapaNodos, nodosReferenciados, instrucciones);
+                compilarSecuencia(idRamaFalsa, mapaNodos, nodosReferenciados, instrucciones,
+                        llamadasSubrutinasPendientes, nombresSubrutinasLlamadas);
 
-                // El fin del IF_ELSE es el índice actual
                 jmpFinIf.setOperando(instrucciones.size());
             } else {
-                // Si no hay rama ELSE, el salto falso apunta directamente aquí
                 jmpIfFalse.setOperando(instrucciones.size());
             }
 
         } else if ("WHILE".equals(operacion)) {
-            // 1. Guardar la línea donde inicia la re-evaluación de la condición
             int indiceInicioBucle = instrucciones.size();
 
-            // 2. Evaluar la condición en cada iteración
             EntradaDato cond = obtenerEntrada(nodo, "condicion");
             evaluarEntradaDato(cond, mapaNodos, instrucciones);
 
-            // 3. Si es falso, salir del bucle
             Instruccion jmpSalida = new Instruccion(CodigoOperacion.JMP_IF_FALSE, 0);
             instrucciones.add(jmpSalida);
 
-            // 4. Compilar el cuerpo del bucle
             if (idRamaVerdadera > 0) {
-                compilarSecuencia(idRamaVerdadera, mapaNodos, nodosReferenciados, instrucciones);
+                compilarSecuencia(idRamaVerdadera, mapaNodos, nodosReferenciados, instrucciones,
+                        llamadasSubrutinasPendientes, nombresSubrutinasLlamadas);
             }
 
-            // 5. Volver al inicio del bucle
             instrucciones.add(new Instruccion(CodigoOperacion.JMP, indiceInicioBucle));
-
-            // 6. Rellenar el destino de salida del bucle
             jmpSalida.setOperando(instrucciones.size());
 
         } else if ("FOREACH".equals(operacion)) {
-            // Implementación linealizada de ForEach sobre colección
-            EntradaDato varIter = obtenerEntrada(nodo, "variable_iteradora");
-            String nombreVarIter = (varIter != null && varIter.getNombre() != null) ? varIter.getNombre() : "__iter_item";
             String varIndice = "__idx_" + nodo.getId();
+            String varSalidaElemento = "__salida_nodo_" + nodo.getId();
 
             instrucciones.add(new Instruccion(CodigoOperacion.PUSH, 0));
             instrucciones.add(new Instruccion(CodigoOperacion.STORE, varIndice));
@@ -202,17 +251,22 @@ public class GeneradorBytecode {
             Instruccion jmpSalida = new Instruccion(CodigoOperacion.JMP_IF_FALSE, 0);
             instrucciones.add(jmpSalida);
 
+            // Obtener elemento actual y guardarlo en el puerto de salida del ForEach
             instrucciones.add(new Instruccion(CodigoOperacion.LOAD, varIndice));
             evaluarEntradaDato(coleccion, mapaNodos, instrucciones);
             instrucciones.add(new Instruccion(CodigoOperacion.CALL_HOST, "GET_ITEM 2"));
-            instrucciones.add(new Instruccion(CodigoOperacion.STORE, nombreVarIter));
-            if (nodosReferenciados.contains(nodo.getId())) {
-                instrucciones.add(new Instruccion(CodigoOperacion.LOAD, nombreVarIter));
-                instrucciones.add(new Instruccion(CodigoOperacion.STORE, "__salida_nodo_" + nodo.getId()));
+            instrucciones.add(new Instruccion(CodigoOperacion.STORE, varSalidaElemento));
+
+            // Si además se especificó una variable iteradora explícita, actualizarla también
+            EntradaDato varIter = obtenerEntrada(nodo, "variable_iteradora");
+            if (varIter != null && varIter.getNombre() != null && !varIter.getNombre().isEmpty()) {
+                instrucciones.add(new Instruccion(CodigoOperacion.LOAD, varSalidaElemento));
+                instrucciones.add(new Instruccion(CodigoOperacion.STORE, varIter.getNombre()));
             }
 
             if (idRamaVerdadera > 0) {
-                compilarSecuencia(idRamaVerdadera, mapaNodos, nodosReferenciados, instrucciones);
+                compilarSecuencia(idRamaVerdadera, mapaNodos, nodosReferenciados, instrucciones,
+                        llamadasSubrutinasPendientes, nombresSubrutinasLlamadas);
             }
 
             instrucciones.add(new Instruccion(CodigoOperacion.LOAD, varIndice));
@@ -230,9 +284,10 @@ public class GeneradorBytecode {
             String operacion,
             Map<Integer, Nodo> mapaNodos,
             Set<Integer> nodosReferenciados,
-            List<Instruccion> instrucciones) {
+            List<Instruccion> instrucciones,
+            List<Instruccion> llamadasSubrutinasPendientes,
+            List<String> nombresSubrutinasLlamadas) {
 
-        // Caso especial nativo: Asignación de variable (SET_VAR)
         if ("SET_VAR".equals(operacion)) {
             EntradaDato entradaValor = obtenerEntrada(nodo, "valor");
             EntradaDato entradaDestino = obtenerEntrada(nodo, "variable_destino");
@@ -243,15 +298,19 @@ public class GeneradorBytecode {
             return;
         }
 
-        // Apilar los argumentos de entrada en orden determinista
-        int aridad = apilarArgumentosAccion(nodo, operacion, mapaNodos, instrucciones);
+        // Si es una Subrutina (Acción Compuesta creada por el usuario)
+        if (operacion.startsWith("SUB_")) {
+            apilarArgumentosAccion(nodo, operacion, mapaNodos, instrucciones);
+            Instruccion instCall = new Instruccion(CodigoOperacion.CALL, 0);
+            instrucciones.add(instCall);
+            llamadasSubrutinasPendientes.add(instCall);
+            nombresSubrutinasLlamadas.add(operacion);
+            return;
+        }
 
-        // Emitir llamada al Host incluyendo la aridad (ej: CALL_HOST APPLY_DISCOUNT 2)
+        int aridad = apilarArgumentosAccion(nodo, operacion, mapaNodos, instrucciones);
         instrucciones.add(new Instruccion(CodigoOperacion.CALL_HOST, operacion + " " + aridad));
 
-        // Si otro nodo del grafo usa la salida de esta acción (ej. GET_STOCK),
-        // guardamos el retorno en una variable sintética de memoria.
-        // Si nadie la usa, limpiamos el valor residual de la pila con POP.
         if (nodosReferenciados.contains(nodo.getId())) {
             instrucciones.add(new Instruccion(CodigoOperacion.STORE, "__salida_nodo_" + nodo.getId()));
         } else {
@@ -269,20 +328,14 @@ public class GeneradorBytecode {
             return 0;
         }
 
-        // Garantizar el orden exacto de parámetros en las acciones conocidas
-        if ("APPLY_DISCOUNT".equals(operacion)) {
-            evaluarEntradaDato(obtenerEntrada(nodo, "producto"), mapaNodos, instrucciones);
-            evaluarEntradaDato(obtenerEntrada(nodo, "porcentaje"), mapaNodos, instrucciones);
-            return 2;
-        } else if ("SHOW_ALERT".equals(operacion)) {
-            evaluarEntradaDato(obtenerEntrada(nodo, "mensaje"), mapaNodos, instrucciones);
-            return 1;
-        } else if ("GET_STOCK".equals(operacion)) {
-            evaluarEntradaDato(obtenerEntrada(nodo, "producto"), mapaNodos, instrucciones);
-            return 1;
+        if (ORDEN_PARAMETROS_HOST.containsKey(operacion)) {
+            List<String> orden = ORDEN_PARAMETROS_HOST.get(operacion);
+            for (String nombreParam : orden) {
+                evaluarEntradaDato(obtenerEntrada(nodo, nombreParam), mapaNodos, instrucciones);
+            }
+            return orden.size();
         }
 
-        // Para bloques de Acción personalizados creados por el usuario
         int count = 0;
         for (Map.Entry<String, EntradaDato> entry : nodo.getDatosEntrada().entrySet()) {
             if (entry.getValue() != null) {
@@ -300,56 +353,26 @@ public class GeneradorBytecode {
 
         String op = nodoExpr.getOperacion() != null ? nodoExpr.getOperacion().toUpperCase() : "";
 
-        // Caso especial si GET_STOCK fue definido como EXPRESION en algún JSON de prueba antiguo
         if ("GET_STOCK".equals(op)) {
             evaluarEntradaDato(obtenerEntrada(nodoExpr, "producto"), mapaNodos, instrucciones);
             instrucciones.add(new Instruccion(CodigoOperacion.CALL_HOST, "GET_STOCK 1"));
             return;
         }
 
-        // Orden estricto: Primero valor_a, luego valor_b (para que en la pila quede [a, b])
         evaluarEntradaDato(obtenerEntrada(nodoExpr, "valor_a"), mapaNodos, instrucciones);
         evaluarEntradaDato(obtenerEntrada(nodoExpr, "valor_b"), mapaNodos, instrucciones);
 
         switch (op) {
-            case "LESS_THAN":
-            case "OP_CMP_LT":
-                instrucciones.add(new Instruccion(CodigoOperacion.LT));
-                break;
-            case "GREATER_THAN":
-            case "OP_CMP_GT":
-                instrucciones.add(new Instruccion(CodigoOperacion.GT));
-                break;
-            case "EQUAL":
-            case "OP_CMP_EQ":
-                instrucciones.add(new Instruccion(CodigoOperacion.EQ));
-                break;
-            case "ADD":
-            case "OP_ADD":
-                instrucciones.add(new Instruccion(CodigoOperacion.ADD));
-                break;
-            case "SUB":
-            case "OP_SUB":
-                instrucciones.add(new Instruccion(CodigoOperacion.SUB));
-                break;
-            case "MUL":
-            case "OP_MUL":
-                instrucciones.add(new Instruccion(CodigoOperacion.MUL));
-                break;
-            case "DIV":
-            case "OP_DIV":
-                instrucciones.add(new Instruccion(CodigoOperacion.DIV));
-                break;
-            case "AND":
-            case "OP_AND":
-                instrucciones.add(new Instruccion(CodigoOperacion.AND));
-                break;
-            case "OR":
-            case "OP_OR":
-                instrucciones.add(new Instruccion(CodigoOperacion.OR));
-                break;
-            default:
-                throw new IllegalArgumentException("Operación de expresión desconocida: " + op);
+            case "LESS_THAN", "OP_CMP_LT" -> instrucciones.add(new Instruccion(CodigoOperacion.LT));
+            case "GREATER_THAN", "OP_CMP_GT" -> instrucciones.add(new Instruccion(CodigoOperacion.GT));
+            case "EQUAL", "OP_CMP_EQ" -> instrucciones.add(new Instruccion(CodigoOperacion.EQ));
+            case "ADD", "OP_ADD" -> instrucciones.add(new Instruccion(CodigoOperacion.ADD));
+            case "SUB", "OP_SUB" -> instrucciones.add(new Instruccion(CodigoOperacion.SUB));
+            case "MUL", "OP_MUL" -> instrucciones.add(new Instruccion(CodigoOperacion.MUL));
+            case "DIV", "OP_DIV" -> instrucciones.add(new Instruccion(CodigoOperacion.DIV));
+            case "AND", "OP_AND" -> instrucciones.add(new Instruccion(CodigoOperacion.AND));
+            case "OR", "OP_OR" -> instrucciones.add(new Instruccion(CodigoOperacion.OR));
+            default -> throw new IllegalArgumentException("Operación de expresión desconocida: " + op);
         }
     }
 
@@ -365,32 +388,85 @@ public class GeneradorBytecode {
 
         String fuente = entrada.getFuente().toUpperCase();
         switch (fuente) {
-            case "LITERAL":
-                instrucciones.add(new Instruccion(CodigoOperacion.PUSH, formatearLiteral(entrada.getValor())));
-                break;
-
-            case "VARIABLE":
-                instrucciones.add(new Instruccion(CodigoOperacion.LOAD, entrada.getNombre()));
-                break;
-
-            case "REFERENCIA_NODO":
+            case "LITERAL" -> instrucciones.add(new Instruccion(CodigoOperacion.PUSH, formatearLiteral(entrada.getValor())));
+            case "VARIABLE" -> instrucciones.add(new Instruccion(CodigoOperacion.LOAD, entrada.getNombre()));
+            case "REFERENCIA_NODO" -> {
                 if (entrada.getIdOrigen() != null) {
                     Nodo nodoOrigen = mapaNodos.get(entrada.getIdOrigen());
                     if (nodoOrigen != null) {
                         if ("EXPRESION".equalsIgnoreCase(nodoOrigen.getTipo())) {
-                            // Las expresiones se evalúan in-place de forma recursiva
                             compilarNodoExpresion(nodoOrigen, mapaNodos, instrucciones);
                         } else if ("EVENTO".equalsIgnoreCase(nodoOrigen.getTipo())) {
-                            // La salida del evento raíz lee la variable inyectada por el entorno
-                            instrucciones.add(new Instruccion(CodigoOperacion.LOAD, "ProductoActual"));
+                            // Cargar la variable inyectada por el Event Bus según el nombre del puerto de salida del Evento
+                            String puerto = entrada.getPuerto();
+                            if (puerto == null || puerto.isBlank() || "producto_leido".equals(puerto)) {
+                                instrucciones.add(new Instruccion(CodigoOperacion.LOAD, "ProductoActual"));
+                            } else {
+                                instrucciones.add(new Instruccion(CodigoOperacion.LOAD, puerto));
+                            }
                         } else {
-                            // La salida de una Acción o Control previo se lee de su variable sintética
                             instrucciones.add(new Instruccion(CodigoOperacion.LOAD, "__salida_nodo_" + nodoOrigen.getId()));
                         }
                     }
                 }
-                break;
+            }
         }
+    }
+
+    @SuppressWarnings("unchecked")
+    private static void cargarOrdenDesdeCatalogoJson() {
+        String[] rutas = {
+            "../../compilador-gráfico/catalogo_host.json",
+            "../compilador-gráfico/catalogo_host.json",
+            "catalogo_host.json"
+        };
+        for (String r : rutas) {
+            File f = new File(r);
+            if (f.exists()) {
+                try (FileReader reader = new FileReader(f)) {
+                    Map<String, Object> data = new Gson().fromJson(reader, Map.class);
+                    if (data != null && data.get("acciones") instanceof List<?> acciones) {
+                        for (Object obj : acciones) {
+                            if (obj instanceof Map<?, ?> acc) {
+                                String op = String.valueOf(acc.get("operacion")).toUpperCase();
+                                if (acc.get("orden_entradas") instanceof List<?> ordenRaw) {
+                                    List<String> orden = new ArrayList<>();
+                                    for (Object item : ordenRaw) orden.add(String.valueOf(item));
+                                    ORDEN_PARAMETROS_HOST.put(op, orden);
+                                }
+                            }
+                        }
+                    }
+                    return;
+                } catch (Exception ignored) {
+                }
+            }
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    private static Grafo cargarGrafoSubrutina(String opSub) {
+        String nombreArchivo = opSub.toLowerCase() + ".json";
+        String[] rutas = {
+            "../../compilador-gráfico/subrutinas/" + nombreArchivo,
+            "../compilador-gráfico/subrutinas/" + nombreArchivo,
+            "subrutinas/" + nombreArchivo
+        };
+        Gson gson = new Gson();
+        for (String r : rutas) {
+            File f = new File(r);
+            if (f.exists()) {
+                try (FileReader reader = new FileReader(f)) {
+                    Map<String, Object> wrapper = gson.fromJson(reader, Map.class);
+                    if (wrapper != null && wrapper.containsKey("grafo")) {
+                        String grafoJson = gson.toJson(wrapper.get("grafo"));
+                        return gson.fromJson(grafoJson, Grafo.class);
+                    }
+                } catch (Exception ignored) {
+                }
+            }
+        }
+        return null;
     }
 
     private static EntradaDato obtenerEntrada(Nodo nodo, String clave) {
@@ -406,10 +482,8 @@ public class GeneradorBytecode {
         return id != null ? id : 0;
     }
 
-    // Evita que Gson convierta enteros como 5 en "5.0" rompiendo la VM
     private static Object formatearLiteral(Object valor) {
-        if (valor instanceof Double) {
-            Double d = (Double) valor;
+        if (valor instanceof Double d) {
             if (d == Math.floor(d) && !Double.isInfinite(d)) {
                 return d.intValue();
             }

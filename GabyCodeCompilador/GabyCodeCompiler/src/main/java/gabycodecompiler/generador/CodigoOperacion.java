@@ -26,6 +26,8 @@ public enum CodigoOperacion {
     JMP,
     JMP_IF_TRUE,
     JMP_IF_FALSE,
+    CALL,
+    RET,
     CALL_HOST,
     PRINT,
     HALT

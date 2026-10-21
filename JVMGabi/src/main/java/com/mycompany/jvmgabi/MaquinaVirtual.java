@@ -11,81 +11,159 @@ package com.mycompany.jvmgabi;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Stack;
+import java.util.function.Consumer;
 
 public class MaquinaVirtual {
 
-    private final Stack<Object> pila;
-    private final Map<String, Object> memoria;
+    // Modelo de Producto para la Despensa
+    public static class Producto {
+        public int id;
+        public String nombre;
+        public double precio;
+        public int stock;
 
-    // Estado simulado de la Despensa (Entorno Host para pruebas de eventos y acciones)
-    private final Map<String, Integer> stockDespensa;
-    private final Map<String, Double> preciosDespensa;
+        public Producto(int id, String nombre, double precio, int stock) {
+            this.id = id;
+            this.nombre = nombre;
+            this.precio = precio;
+            this.stock = stock;
+        }
+
+        @Override
+        public String toString() {
+            return String.format("Producto[#%d %s | $%.2f | Stock:%d]", id, nombre, precio, stock);
+        }
+    }
+
+    private final Stack<Object> pila;
+    // Pila de Scopes (Call Frames) para aislar las variables de las Subrutinas del programa principal
+    private final Stack<Map<String, Object>> pilaScopes;
+    private final Stack<Integer> pilaRetorno;
+    // Memoria de datos inyectados por el Event Bus (ej. ProductoActual, lista_productos, lista_ids_descuento)
+    private final Map<String, Object> memoriaEventos;
+
+    // Base de datos en memoria de la Despensa
+    private final Map<Integer, Producto> catalogoProductos;
+    private Consumer<String> loggerCallback;
 
     public MaquinaVirtual() {
         this.pila = new Stack<>();
-        this.memoria = new HashMap<>();
-        this.stockDespensa = new HashMap<>();
-        this.preciosDespensa = new HashMap<>();
-        inicializarEntornoDespensa();
+        this.pilaScopes = new Stack<>();
+        this.pilaRetorno = new Stack<>();
+        this.memoriaEventos = new HashMap<>();
+        this.catalogoProductos = new LinkedHashMap<>();
+        inicializarInventarioPorDefecto();
     }
 
-    private void inicializarEntornoDespensa() {
-        // Productos de prueba en el inventario de la despensa
-        stockDespensa.put("Producto Escaneado (Leche 1L)", 3);
-        preciosDespensa.put("Producto Escaneado (Leche 1L)", 1200.0);
+    public void setLoggerCallback(Consumer<String> callback) {
+        this.loggerCallback = callback;
+    }
 
-        stockDespensa.put("Arroz 1Kg", 15);
-        preciosDespensa.put("Arroz 1Kg", 1500.0);
+    private void log(String mensaje) {
+        System.out.println(mensaje);
+        if (loggerCallback != null) {
+            loggerCallback.accept(mensaje);
+        }
+    }
 
-        // Variable inyectada por defecto cuando se dispara ON_PRODUCT_SCANNED
-        memoria.put("ProductoActual", "Producto Escaneado (Leche 1L)");
+    public final void inicializarInventarioPorDefecto() {
+        catalogoProductos.clear();
+        catalogoProductos.put(101, new Producto(101, "Leche Entera 1L", 1200.0, 3));
+        catalogoProductos.put(102, new Producto(102, "Pan Dulce Navideño", 4500.0, 12));
+        catalogoProductos.put(103, new Producto(103, "Arroz Grano Largo 1Kg", 1500.0, 20));
+        catalogoProductos.put(104, new Producto(104, "Sidra Etiqueta Blanca", 3200.0, 8));
+
+        // Contexto por defecto para pruebas directas
+        inyectarDatoEvento("ProductoActual", catalogoProductos.get(101));
+        inyectarDatoEvento("producto_leido", catalogoProductos.get(101));
+        inyectarDatoEvento("lista_productos", new ArrayList<>(Arrays.asList(
+                catalogoProductos.get(101),
+                catalogoProductos.get(103)
+        )));
+        inyectarDatoEvento("lista_ids_descuento", new ArrayList<>(Arrays.asList(102, 104)));
+    }
+
+    public Map<Integer, Producto> getCatalogoProductos() {
+        return catalogoProductos;
+    }
+
+    public void inyectarDatoEvento(String clave, Object valor) {
+        memoriaEventos.put(clave, valor);
+    }
+
+    public Map<String, Object> getScopeActual() {
+        return pilaScopes.isEmpty() ? memoriaEventos : pilaScopes.peek();
     }
 
     public void ejecutar(List<String> programa) {
+        pila.clear();
+        pilaScopes.clear();
+        pilaRetorno.clear();
+        // Scope raíz del programa principal
+        pilaScopes.push(new HashMap<>());
+
         int pc = 0;
         while (pc < programa.size()) {
             String linea = programa.get(pc).trim();
 
-            // Ignorar líneas vacías o comentarios
             if (linea.isEmpty() || linea.startsWith("#") || linea.startsWith("//")) {
                 pc++;
                 continue;
             }
 
-            // Separar únicamente el OpCode (partes[0]) del resto del operando (partes[1])
             String[] partes = linea.split("\\s+", 2);
             String instruccion = partes[0].toUpperCase();
             String operandoCrudo = partes.length > 1 ? partes[1].trim() : "";
 
             switch (instruccion) {
-                case "PUSH", "PUSH_LITERAL" -> {
-                    pila.push(parsearLiteral(operandoCrudo));
-                }
+                case "PUSH", "PUSH_LITERAL" -> pila.push(parsearLiteral(operandoCrudo));
 
                 case "POP" -> {
-                    if (!pila.isEmpty()) {
-                        pila.pop();
-                    }
+                    if (!pila.isEmpty()) pila.pop();
                 }
 
                 case "STORE", "STORE_VAR" -> {
                     Object valor = pila.isEmpty() ? 0 : pila.pop();
-                    // Si la variable es ProductoActual y el compilador la inicializa en 0 por defecto,
-                    // preservamos el producto escaneado del entorno si el valor es 0
-                    if ("ProductoActual".equals(operandoCrudo) && Integer.valueOf(0).equals(valor)
-                            && memoria.containsKey("ProductoActual")) {
-                        // Mantener el producto del evento ON_PRODUCT_SCANNED
+                    // Evitar que la inicialización en 0 pise un objeto ya inyectado por el Event Bus
+                    if (pilaScopes.size() == 1 && memoriaEventos.containsKey(operandoCrudo)
+                            && Integer.valueOf(0).equals(valor)) {
+                        pilaScopes.peek().put(operandoCrudo, memoriaEventos.get(operandoCrudo));
                     } else {
-                        memoria.put(operandoCrudo, valor);
+                        pilaScopes.peek().put(operandoCrudo, valor);
                     }
                 }
 
                 case "LOAD", "LOAD_VAR" -> {
-                    Object valor = memoria.getOrDefault(operandoCrudo, 0);
+                    Map<String, Object> scopeLocal = pilaScopes.peek();
+                    Object valor;
+                    if (scopeLocal.containsKey(operandoCrudo)) {
+                        valor = scopeLocal.get(operandoCrudo);
+                    } else {
+                        valor = memoriaEventos.getOrDefault(operandoCrudo, 0);
+                    }
                     pila.push(valor);
+                }
+
+                // --- LLAMADA Y RETORNO DE SUBRUTINAS CON AISLAMIENTO DE SCOPE ---
+                case "CALL" -> {
+                    int direccionSubrutina = Integer.parseInt(operandoCrudo);
+                    pilaRetorno.push(pc + 1);
+                    pilaScopes.push(new HashMap<>());
+                    log(" 🔄 [VM CALL] Entrando a Subrutina en línea " + direccionSubrutina + " (Nuevo Scope aislado)");
+                    pc = direccionSubrutina;
+                    continue;
+                }
+
+                case "RET" -> {
+                    if (!pilaScopes.isEmpty()) pilaScopes.pop();
+                    if (pilaRetorno.isEmpty()) return;
+                    pc = pilaRetorno.pop();
+                    log(" ↩️ [VM RET] Saliendo de Subrutina, retornando a línea " + pc);
+                    continue;
                 }
 
                 case "ADD", "OP_ADD" -> {
@@ -94,9 +172,9 @@ public class MaquinaVirtual {
                     if (a instanceof String || b instanceof String) {
                         pila.push(String.valueOf(a) + String.valueOf(b));
                     } else if (a instanceof Double || b instanceof Double) {
-                        pila.push( aNumero(a) + aNumero(b) );
+                        pila.push(aNumero(a) + aNumero(b));
                     } else {
-                        pila.push( aEntero(a) + aEntero(b) );
+                        pila.push(aEntero(a) + aEntero(b));
                     }
                 }
 
@@ -104,9 +182,9 @@ public class MaquinaVirtual {
                     Object b = pila.pop();
                     Object a = pila.pop();
                     if (a instanceof Double || b instanceof Double) {
-                        pila.push( aNumero(a) - aNumero(b) );
+                        pila.push(aNumero(a) - aNumero(b));
                     } else {
-                        pila.push( aEntero(a) - aEntero(b) );
+                        pila.push(aEntero(a) - aEntero(b));
                     }
                 }
 
@@ -114,9 +192,9 @@ public class MaquinaVirtual {
                     Object b = pila.pop();
                     Object a = pila.pop();
                     if (a instanceof Double || b instanceof Double) {
-                        pila.push( aNumero(a) * aNumero(b) );
+                        pila.push(aNumero(a) * aNumero(b));
                     } else {
-                        pila.push( aEntero(a) * aEntero(b) );
+                        pila.push(aEntero(a) * aEntero(b));
                     }
                 }
 
@@ -124,13 +202,11 @@ public class MaquinaVirtual {
                     Object b = pila.pop();
                     Object a = pila.pop();
                     double divisor = aNumero(b);
-                    if (divisor == 0) {
-                        throw new ArithmeticException("Error en VM: División por cero en la línea " + pc);
-                    }
+                    if (divisor == 0) throw new ArithmeticException("División por cero en línea " + pc);
                     if (a instanceof Double || b instanceof Double) {
-                        pila.push( aNumero(a) / divisor );
+                        pila.push(aNumero(a) / divisor);
                     } else {
-                        pila.push( aEntero(a) / aEntero(b) );
+                        pila.push(aEntero(a) / aEntero(b));
                     }
                 }
 
@@ -164,9 +240,7 @@ public class MaquinaVirtual {
                     pila.push(a < b ? 1 : 0);
                 }
 
-                case "PRINT" -> {
-                    System.out.println("[PRINT] " + pila.pop());
-                }
+                case "PRINT" -> log(" 🖨️ [PRINT] " + pila.pop());
 
                 case "JMP", "JUMP" -> {
                     pc = Integer.parseInt(operandoCrudo);
@@ -202,7 +276,7 @@ public class MaquinaVirtual {
                 }
 
                 case "HALT" -> {
-                    System.out.println("\n[VM] Ejecución finalizada (HALT). Estado final de Memoria: " + memoria);
+                    log(" ✅ [VM HALT] Ejecución finalizada. Variables del Scope Principal: " + pilaScopes.peek());
                     return;
                 }
 
@@ -214,7 +288,6 @@ public class MaquinaVirtual {
 
     private Object ejecutarHost(String nombreFuncion, List<Object> parametros) {
         switch (nombreFuncion.toUpperCase()) {
-            // --- FUNCIONES LEGACY DE PRUEBA ---
             case "SUMAR" -> {
                 return aEntero(parametros.get(0)) + aEntero(parametros.get(1));
             }
@@ -222,37 +295,83 @@ public class MaquinaVirtual {
                 return aEntero(parametros.get(0)) * aEntero(parametros.get(1));
             }
             case "MOSTRAR" -> {
-                System.out.println("[HOST MOSTRAR] " + parametros.get(0));
+                log(" 💬 [MOSTRAR] " + parametros.get(0));
                 return 0;
             }
 
-            // --- FUNCIONES NATIVAS DEL DOMINIO DE LA DESPENSA ---
+            // --- CASO DE PRUEBA 3: ESCANEO Y CONTROL DE STOCK ---
             case "GET_STOCK" -> {
-                String producto = String.valueOf(parametros.get(0));
-                int stock = stockDespensa.getOrDefault(producto, 3);
-                System.out.println(" 📦 [HOST GET_STOCK] Consultando stock de '" + producto + "' -> " + stock + " unidades.");
+                Producto prod = resolverProducto(parametros.get(0));
+                int stock = (prod != null) ? prod.stock : 0;
+                log(" 📦 [GET_STOCK] Stock de '" + (prod != null ? prod.nombre : parametros.get(0)) + "' = " + stock);
                 return stock;
             }
 
             case "SHOW_ALERT" -> {
-                String mensaje = String.valueOf(parametros.get(0));
-                System.out.println(" 🚨 [ALERTA DEL SISTEMA]: " + mensaje);
+                String msg = String.valueOf(parametros.get(0));
+                log(" 🚨 [SHOW_ALERT] " + msg);
                 return 0;
+            }
+
+            // --- CASO DE PRUEBA 2 Y 3: NAVIDAD Y APLICACIÓN DE DESCUENTOS ---
+            case "GET_PRODUCT_BY_ID" -> {
+                int idProd = aEntero(parametros.get(0));
+                Producto prod = catalogoProductos.get(idProd);
+                log(" 🔍 [GET_PRODUCT_BY_ID] Buscando ID #" + idProd + " -> " + (prod != null ? prod.nombre : "No encontrado"));
+                return prod != null ? prod : idProd;
             }
 
             case "APPLY_DISCOUNT" -> {
-                String producto = String.valueOf(parametros.get(0));
+                Producto prod = resolverProducto(parametros.get(0));
                 double porcentaje = aNumero(parametros.get(1));
-                double precioBase = preciosDespensa.getOrDefault(producto, 1000.0);
-                double precioFinal = precioBase * (1.0 - (porcentaje / 100.0));
-                preciosDespensa.put(producto, precioFinal);
-                System.out.println(String.format(
-                        " 🏷️ [HOST APPLY_DISCOUNT] Descuento del %.1f%% aplicado a '%s' ($%.2f -> $%.2f)",
-                        porcentaje, producto, precioBase, precioFinal));
+                if (prod != null) {
+                    double precioAnterior = prod.precio;
+                    prod.precio = Math.round((prod.precio * (1.0 - porcentaje / 100.0)) * 100.0) / 100.0;
+                    log(String.format(" 🏷️ [APPLY_DISCOUNT] %.0f%% de descuento en '%s' ($%.2f -> $%.2f)",
+                            porcentaje, prod.nombre, precioAnterior, prod.precio));
+                } else {
+                    log(" 🏷️ [APPLY_DISCOUNT] Descuento de " + porcentaje + "% aplicado a " + parametros.get(0));
+                }
                 return 0;
             }
 
-            // --- SOPORTE PARA BUCLE FOREACH ---
+            // --- CASO DE PRUEBA 1: FINALIZAR VENTA ---
+            case "CALCULATE_SALE_TOTAL" -> {
+                List<Object> lista = convertirALista(parametros.get(0));
+                double total = 0.0;
+                for (Object item : lista) {
+                    Producto p = resolverProducto(item);
+                    if (p != null) {
+                        total += p.precio;
+                    } else {
+                        total += aNumero(item);
+                    }
+                }
+                log(String.format(" 🧮 [CALCULATE_SALE_TOTAL] Total calculado para %d productos = $%.2f", lista.size(), total));
+                return total;
+            }
+
+            case "REGISTER_SALE" -> {
+                List<Object> lista = convertirALista(parametros.get(0));
+                double total = aNumero(parametros.get(1));
+                for (Object item : lista) {
+                    Producto p = resolverProducto(item);
+                    if (p != null && p.stock > 0) {
+                        p.stock -= 1;
+                    }
+                }
+                log(String.format(" 🧾 [REGISTER_SALE] Venta registrada con éxito (%d ítems) por $%.2f. Stock descontado.",
+                        lista.size(), total));
+                return 0;
+            }
+
+            case "SHOW_TOTAL" -> {
+                double total = aNumero(parametros.get(0));
+                log(String.format(" 💰 [SHOW_TOTAL] TOTAL A PAGAR EN CAJA: $%.2f", total));
+                return 0;
+            }
+
+            // --- ITERACIÓN POLIMÓRFICA FOREACH ---
             case "HAS_NEXT" -> {
                 int idx = aEntero(parametros.get(0));
                 List<Object> lista = convertirALista(parametros.get(1));
@@ -265,53 +384,61 @@ public class MaquinaVirtual {
                 return (idx >= 0 && idx < lista.size()) ? lista.get(idx) : null;
             }
 
-            // --- BLOQUES DE ACCIÓN PERSONALIZADOS CREADOS POR EL USUARIO ---
             default -> {
-                System.out.println(" ⚙️ [HOST CUSTOM '" + nombreFuncion + "'] Ejecutado con parámetros: " + parametros);
+                log(" ⚙️ [HOST CUSTOM '" + nombreFuncion + "'] Ejecutado con argumentos: " + parametros);
                 return 0;
             }
         }
     }
 
+    private Producto resolverProducto(Object ref) {
+        if (ref instanceof Producto p) {
+            return p;
+        }
+        if (ref instanceof Number num) {
+            return catalogoProductos.get(num.intValue());
+        }
+        if (ref instanceof String str) {
+            for (Producto p : catalogoProductos.values()) {
+                if (p.nombre.equalsIgnoreCase(str) || str.contains(p.nombre)) {
+                    return p;
+                }
+            }
+            try {
+                return catalogoProductos.get(Integer.parseInt(str.trim()));
+            } catch (NumberFormatException ignored) {
+            }
+        }
+        return catalogoProductos.get(101);
+    }
+
     private int inferirAridadPorDefecto(String nombreFuncion) {
         return switch (nombreFuncion.toUpperCase()) {
-            case "APPLY_DISCOUNT", "SUMAR", "MULTIPLICAR", "HAS_NEXT", "GET_ITEM" -> 2;
-            case "SHOW_ALERT", "GET_STOCK", "MOSTRAR" -> 1;
+            case "APPLY_DISCOUNT", "REGISTER_SALE", "SUMAR", "MULTIPLICAR", "HAS_NEXT", "GET_ITEM" -> 2;
+            case "SHOW_ALERT", "GET_STOCK", "GET_PRODUCT_BY_ID", "CALCULATE_SALE_TOTAL", "SHOW_TOTAL", "MOSTRAR" -> 1;
             default -> 0;
         };
     }
 
     private Object parsearLiteral(String raw) {
-        if (raw == null || raw.isEmpty() || "null".equalsIgnoreCase(raw)) {
-            return 0;
-        }
-        if ("true".equalsIgnoreCase(raw)) {
-            return 1;
-        }
-        if ("false".equalsIgnoreCase(raw)) {
-            return 0;
-        }
-        // Intentar como entero
+        if (raw == null || raw.isEmpty() || "null".equalsIgnoreCase(raw)) return 0;
+        if ("true".equalsIgnoreCase(raw)) return 1;
+        if ("false".equalsIgnoreCase(raw)) return 0;
         try {
             return Integer.parseInt(raw);
         } catch (NumberFormatException ignored) {
         }
-        // Intentar como decimal (ej. 5.0)
         try {
             double d = Double.parseDouble(raw);
-            if (d == Math.floor(d) && !Double.isInfinite(d)) {
-                return (int) d;
-            }
+            if (d == Math.floor(d) && !Double.isInfinite(d)) return (int) d;
             return d;
         } catch (NumberFormatException ignored) {
         }
-        // Si es una lista entre corchetes o separada por comas (para ForEach)
         if (raw.startsWith("[") && raw.endsWith("]")) {
             String contenido = raw.substring(1, raw.length() - 1).trim();
             if (contenido.isEmpty()) return new ArrayList<>();
             return new ArrayList<>(Arrays.asList(contenido.split("\\s*,\\s*")));
         }
-        // Por defecto, devolver el texto íntegro con sus espacios
         return raw;
     }
 
@@ -329,12 +456,8 @@ public class MaquinaVirtual {
     }
 
     private int aEntero(Object obj) {
-        if (obj instanceof Number num) {
-            return num.intValue();
-        }
-        if (obj instanceof Boolean b) {
-            return b ? 1 : 0;
-        }
+        if (obj instanceof Number num) return num.intValue();
+        if (obj instanceof Boolean b) return b ? 1 : 0;
         try {
             return (int) Double.parseDouble(String.valueOf(obj));
         } catch (NumberFormatException e) {
@@ -343,12 +466,8 @@ public class MaquinaVirtual {
     }
 
     private double aNumero(Object obj) {
-        if (obj instanceof Number num) {
-            return num.doubleValue();
-        }
-        if (obj instanceof Boolean b) {
-            return b ? 1.0 : 0.0;
-        }
+        if (obj instanceof Number num) return num.doubleValue();
+        if (obj instanceof Boolean b) return b ? 1.0 : 0.0;
         try {
             return Double.parseDouble(String.valueOf(obj));
         } catch (NumberFormatException e) {
@@ -357,12 +476,8 @@ public class MaquinaVirtual {
     }
 
     private boolean aBooleano(Object obj) {
-        if (obj instanceof Boolean b) {
-            return b;
-        }
-        if (obj instanceof Number num) {
-            return num.doubleValue() != 0.0;
-        }
+        if (obj instanceof Boolean b) return b;
+        if (obj instanceof Number num) return num.doubleValue() != 0.0;
         String s = String.valueOf(obj).trim();
         return "true".equalsIgnoreCase(s) || "1".equals(s);
     }

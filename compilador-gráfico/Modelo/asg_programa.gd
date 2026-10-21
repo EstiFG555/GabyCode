@@ -14,7 +14,7 @@ func registrar_nodo(nodo : NodoBaseASG) -> int:
 func obtener_nodo(id_buscado : int) -> NodoBaseASG:
 	return nodos_grafos.get(id_buscado, null)
 
-# --- GESTIÓN DE VARIABLES LOCALES ---
+# --- GESTIÓN DE VARIABLES LOCALES (CON SUBTIPO PARA ARREGLOS UNIFORMES) ---
 func existe_variable(nombre: String) -> bool:
 	for v in variables_locales:
 		if v.get("nombre") == nombre:
@@ -24,15 +24,22 @@ func existe_variable(nombre: String) -> bool:
 func obtener_tipo_variable(nombre: String) -> int:
 	for v in variables_locales:
 		if v.get("nombre") == nombre:
-			return v.get("tipo", GabyEnums.TipoDato.ANY)
+			return int(v.get("tipo", GabyEnums.TipoDato.ANY))
 	return GabyEnums.TipoDato.ANY
 
-func agregar_variable(nombre: String, tipo: GabyEnums.TipoDato, valor_inicial: Variant) -> void:
+func obtener_subtipo_variable(nombre: String) -> int:
+	for v in variables_locales:
+		if v.get("nombre") == nombre:
+			return int(v.get("subtipo", GabyEnums.TipoDato.ANY))
+	return GabyEnums.TipoDato.ANY
+
+func agregar_variable(nombre: String, tipo: int, valor_inicial: Variant, subtipo: int = GabyEnums.TipoDato.ANY) -> void:
 	if existe_variable(nombre):
 		return
 	variables_locales.append({
 		"nombre": nombre,
 		"tipo": tipo,
+		"subtipo": subtipo,
 		"valor_inicial": valor_inicial
 	})
 
@@ -41,7 +48,6 @@ func eliminar_variable(nombre: String) -> void:
 		if variables_locales[i].get("nombre") == nombre:
 			variables_locales.remove_at(i)
 			
-	# Limpiar referencias en todos los nodos que usaban esta variable
 	for id_nodo in nodos_grafos.keys():
 		var nodo : NodoBaseASG = nodos_grafos[id_nodo]
 		var claves_a_borrar : Array = []
@@ -54,7 +60,6 @@ func eliminar_variable(nombre: String) -> void:
 					
 		for clave in claves_a_borrar:
 			nodo.entradas_datos_conectadas.erase(clave)
-			# Si en un SET_VAR se borró la variable_destino, también limpiamos su valor asociado
 			if clave == &"variable_destino" and nodo.entradas_datos_conectadas.has(&"valor"):
 				nodo.entradas_datos_conectadas.erase(&"valor")
 				
@@ -68,6 +73,7 @@ func crear_instantanea() -> Dictionary:
 		var clon : NodoBaseASG = n.duplicate(true)
 		clon.id = n.id
 		clon.entradas_datos_conectadas = n.entradas_datos_conectadas.duplicate(true)
+		clon.subtipos_array_salidas = n.subtipos_array_salidas.duplicate()
 		if "id_siguiente_ejecución" in n:
 			clon.set(&"id_siguiente_ejecución", n.get(&"id_siguiente_ejecución"))
 		if n is ASGControl and clon is ASGControl:
@@ -91,6 +97,7 @@ func restaurar_instantanea(instantanea: Dictionary) -> void:
 		var clon : NodoBaseASG = n.duplicate(true)
 		clon.id = n.id
 		clon.entradas_datos_conectadas = n.entradas_datos_conectadas.duplicate(true)
+		clon.subtipos_array_salidas = n.subtipos_array_salidas.duplicate()
 		if "id_siguiente_ejecución" in n:
 			clon.set(&"id_siguiente_ejecución", n.get(&"id_siguiente_ejecución"))
 		if n is ASGControl and clon is ASGControl:
@@ -155,7 +162,7 @@ func limpiar_referencias_colgantes(id_objetivo : int) -> void:
 		for parametro in nodo.entradas_datos_conectadas.keys():
 			var conexion : Variant = nodo.entradas_datos_conectadas[parametro]
 			if typeof(conexion) == TYPE_DICTIONARY and conexion.get("fuente") == "REFERENCIA_NODO":
-				if conexion.get("id_origen") == id_objetivo:
+				if int(conexion.get("id_origen", -1)) == id_objetivo:
 					claves_a_borrar.append(parametro)
 		
 		for clave in claves_a_borrar:
@@ -171,7 +178,7 @@ func limpiar_expresiones_huerfanas() -> void:
 			var nodo : NodoBaseASG = nodos_grafos[id_nodo]
 			for conexion in nodo.entradas_datos_conectadas.values():
 				if typeof(conexion) == TYPE_DICTIONARY and conexion.get("fuente") == "REFERENCIA_NODO":
-					ids_referenciados[conexion.get("id_origen")] = true
+					ids_referenciados[int(conexion.get("id_origen", -1))] = true
 					
 		var expresiones_a_borrar : Array[int] = []
 		for id_nodo in nodos_grafos.keys():
@@ -220,3 +227,84 @@ func generar_json_ir() -> String:
 		exportacion[&"nodos"].append(nodo.to_dict())
 	
 	return JSON.stringify(exportacion, "\t")
+
+# --- DESERIALIZACIÓN: CARGAR PROGRAMA DESDE JSON ---
+func cargar_desde_json_string(json_str: String, registro_bloques: Dictionary, fabrica: BloqueFactory) -> bool:
+	var parsed = JSON.parse_string(json_str)
+	if typeof(parsed) != TYPE_DICTIONARY:
+		return false
+		
+	variables_locales.clear()
+	nodos_grafos.clear()
+	ultimo_id = 0
+	
+	if parsed.has("variables_locales") and typeof(parsed["variables_locales"]) == TYPE_ARRAY:
+		for v in parsed["variables_locales"]:
+			if typeof(v) == TYPE_DICTIONARY:
+				variables_locales.append({
+					"nombre": str(v.get("nombre", "Var")),
+					"tipo": int(v.get("tipo", GabyEnums.TipoDato.ANY)),
+					"subtipo": int(v.get("subtipo", GabyEnums.TipoDato.ANY)),
+					"valor_inicial": v.get("valor_inicial", 0)
+				})
+				
+	if not parsed.has("nodos") or typeof(parsed["nodos"]) != TYPE_ARRAY:
+		return false
+		
+	for n_dict in parsed["nodos"]:
+		if typeof(n_dict) != TYPE_DICTIONARY: continue
+		var id_n : int = int(n_dict.get("id", 0))
+		if id_n <= 0: continue
+		if id_n > ultimo_id: ultimo_id = id_n
+		
+		var tipo_str : String = str(n_dict.get("tipo", "ACCION")).to_upper()
+		var op_str : String = str(n_dict.get("operacion", n_dict.get("acción", n_dict.get("operación", ""))))
+		var op_name := StringName(op_str)
+		var def : DefinicionBloque = registro_bloques.get(op_name, null)
+		
+		var nuevo_nodo : NodoBaseASG = null
+		if tipo_str == "EVENTO":
+			var ev := ASGEvento.new()
+			ev.nombre_evento = op_name
+			nuevo_nodo = ev
+		elif tipo_str == "CONTROL":
+			var ctrl := ASGControl.new()
+			ctrl.nombre_control = op_name
+			nuevo_nodo = ctrl
+		elif tipo_str == "EXPRESION":
+			var expr := ASGExpresión.new()
+			expr.nombre_expresión = op_name
+			nuevo_nodo = expr
+		else:
+			var acc := ASGAcción.new()
+			acc.nombre_acción = op_name
+			nuevo_nodo = acc
+			
+		nuevo_nodo.id = id_n
+		if def:
+			nuevo_nodo.tipos_entradas_esperadas = def.tipos_entradas_esperadas.duplicate()
+			nuevo_nodo.tipos_salidas_provistas = def.tipos_salidas_provistas.duplicate()
+			nuevo_nodo.subtipos_array_salidas = def.subtipos_array_salidas.duplicate()
+			
+		# Restaurar salidas de ejecución
+		var salidas : Array = n_dict.get("salidas_ejecucion", [])
+		if nuevo_nodo is ASGControl:
+			if salidas.size() > 0: nuevo_nodo.id_rama_verdadera = int(salidas[0])
+			if salidas.size() > 1: nuevo_nodo.id_rama_falsa = int(salidas[1])
+			if salidas.size() > 2: nuevo_nodo.id_siguiente_ejecución = int(salidas[2])
+		elif "id_siguiente_ejecución" in nuevo_nodo and salidas.size() > 0:
+			nuevo_nodo.set(&"id_siguiente_ejecución", int(salidas[0]))
+			
+		# Restaurar entradas de datos
+		var entradas_raw : Dictionary = n_dict.get("datos_entrada", n_dict.get("entradas_datos", {}))
+		for k in entradas_raw.keys():
+			var ed = entradas_raw[k]
+			if typeof(ed) == TYPE_DICTIONARY:
+				var copia_ed : Dictionary = ed.duplicate()
+				if copia_ed.has("id_origen"):
+					copia_ed["id_origen"] = int(copia_ed["id_origen"])
+				nuevo_nodo.entradas_datos_conectadas[StringName(k)] = copia_ed
+				
+		nodos_grafos[id_n] = nuevo_nodo
+		
+	return true

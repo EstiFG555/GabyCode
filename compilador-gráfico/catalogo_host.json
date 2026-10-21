@@ -1,0 +1,110 @@
+{
+	"tipos_objetos": [
+		"PRODUCTO",
+		"VENTA",
+		"CLIENTE"
+	],
+	"eventos": [
+		{
+			"operacion": "ON_PRODUCT_SCANNED",
+			"nombre_visual": "Evento: Al Escanear Producto",
+			"salidas": {
+				"producto_leido": { "tipo": "PRODUCTO" }
+			}
+		},
+		{
+			"operacion": "ON_SALE_FINISHED",
+			"nombre_visual": "Evento: Finalizar Venta",
+			"salidas": {
+				"lista_productos": { "tipo": "ARRAY", "subtipo": "PRODUCTO" }
+			}
+		},
+		{
+			"operacion": "ON_CHRISTMAS_PROMO",
+			"nombre_visual": "Evento: Se acerca Navidad",
+			"salidas": {
+				"lista_ids_descuento": { "tipo": "ARRAY", "subtipo": "INT" }
+			}
+		},
+		{
+			"operacion": "SUBROUTINE_ENTRY",
+			"nombre_visual": "Inicio de Subrutina (Acción Compuesta)",
+			"salidas": {
+				"parametro_entrada": { "tipo": "ANY" }
+			}
+		}
+	],
+	"acciones": [
+		{
+			"operacion": "GET_STOCK",
+			"nombre_visual": "Obtener Stock de Producto",
+			"orden_entradas": ["producto"],
+			"entradas": {
+				"producto": "PRODUCTO"
+			},
+			"salidas": {
+				"resultado": { "tipo": "INT" }
+			}
+		},
+		{
+			"operacion": "GET_PRODUCT_BY_ID",
+			"nombre_visual": "Obtener Producto",
+			"orden_entradas": ["id_producto"],
+			"entradas": {
+				"id_producto": "INT"
+			},
+			"salidas": {
+				"producto": { "tipo": "PRODUCTO" }
+			}
+		},
+		{
+			"operacion": "APPLY_DISCOUNT",
+			"nombre_visual": "Aplicar Descuento",
+			"orden_entradas": ["producto", "porcentaje"],
+			"entradas": {
+				"producto": "PRODUCTO",
+				"porcentaje": "INT"
+			},
+			"salidas": {}
+		},
+		{
+			"operacion": "SHOW_ALERT",
+			"nombre_visual": "Mostrar Mensaje / Alerta",
+			"orden_entradas": ["mensaje"],
+			"entradas": {
+				"mensaje": "STRING"
+			},
+			"salidas": {}
+		},
+		{
+			"operacion": "CALCULATE_SALE_TOTAL",
+			"nombre_visual": "Calcular Total de Venta",
+			"orden_entradas": ["lista_productos"],
+			"entradas": {
+				"lista_productos": "ARRAY"
+			},
+			"salidas": {
+				"total": { "tipo": "FLOAT" }
+			}
+		},
+		{
+			"operacion": "REGISTER_SALE",
+			"nombre_visual": "Registrar Venta",
+			"orden_entradas": ["lista_productos", "total"],
+			"entradas": {
+				"lista_productos": "ARRAY",
+				"total": "FLOAT"
+			},
+			"salidas": {}
+		},
+		{
+			"operacion": "SHOW_TOTAL",
+			"nombre_visual": "Mostrar Total",
+			"orden_entradas": ["total"],
+			"entradas": {
+				"total": "FLOAT"
+			},
+			"salidas": {}
+		}
+	]
+}
