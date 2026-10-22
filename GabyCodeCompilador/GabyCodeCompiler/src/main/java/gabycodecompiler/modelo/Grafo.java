@@ -8,15 +8,30 @@ package gabycodecompiler.modelo;
  *
  * @author facu
  */
+import com.google.gson.annotations.SerializedName;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 public class Grafo {
-    // Gson mapeará automáticamente un arreglo JSON llamado "nodos" a esta lista
+
+    @SerializedName("variables_locales")
+    private List<Map<String, Object>> variablesLocales;
+
+    @SerializedName("nodos")
     private List<Nodo> nodos;
 
     public Grafo() {
+        this.variablesLocales = new ArrayList<>();
         this.nodos = new ArrayList<>();
+    }
+
+    public List<Map<String, Object>> getVariablesLocales() {
+        return variablesLocales;
+    }
+
+    public void setVariablesLocales(List<Map<String, Object>> variablesLocales) {
+        this.variablesLocales = variablesLocales;
     }
 
     public List<Nodo> getNodos() {

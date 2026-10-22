@@ -2,112 +2,492 @@
  * Click nbfs://nbhost/SystemFileSystem/Templates/Licenses/license-default.txt to change this license
  * Click nbfs://nbhost/SystemFileSystem/Templates/Classes/Class.java to edit this template
  */
-package gabycodecompiler.generador;
-
-import gabycodecompiler.modelo.EntradaDato;
-import gabycodecompiler.modelo.Nodo;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
 
 /**
  *
  * @author facu
  */
+package gabycodecompiler.generador;
+
+import com.google.gson.Gson;
+import gabycodecompiler.modelo.EntradaDato;
+import gabycodecompiler.modelo.Grafo;
+import gabycodecompiler.modelo.Nodo;
+import java.io.File;
+import java.io.FileReader;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+
 public class GeneradorBytecode {
 
-    public static List<Instruccion> generar(List<Nodo> nodosOrdenados) {
-        List<Instruccion> instrucciones = new ArrayList<>();
+    // Mapa con el orden oficial de parámetros leído de catalogo_host.json o por defecto
+    private static final Map<String, List<String>> ORDEN_PARAMETROS_HOST = new HashMap<>();
 
-        if (nodosOrdenados == null || nodosOrdenados.isEmpty()) {
+    static {
+        ORDEN_PARAMETROS_HOST.put("APPLY_DISCOUNT", Arrays.asList("producto", "porcentaje"));
+        ORDEN_PARAMETROS_HOST.put("SHOW_ALERT", Arrays.asList("mensaje"));
+        ORDEN_PARAMETROS_HOST.put("GET_STOCK", Arrays.asList("producto"));
+        ORDEN_PARAMETROS_HOST.put("GET_PRODUCT_BY_ID", Arrays.asList("id_producto"));
+        ORDEN_PARAMETROS_HOST.put("CALCULATE_SALE_TOTAL", Arrays.asList("lista_productos"));
+        ORDEN_PARAMETROS_HOST.put("REGISTER_SALE", Arrays.asList("lista_productos", "total"));
+        ORDEN_PARAMETROS_HOST.put("SHOW_TOTAL", Arrays.asList("total"));
+    }
+
+    public static List<Instruccion> generar(List<Nodo> nodos) {
+        Grafo g = new Grafo();
+        g.setNodos(nodos);
+        return generar(g);
+    }
+
+    public static List<Instruccion> generar(Grafo grafo) {
+        cargarOrdenDesdeCatalogoJson();
+
+        List<Instruccion> instrucciones = new ArrayList<>();
+        if (grafo == null || grafo.getNodos() == null || grafo.getNodos().isEmpty()) {
             return instrucciones;
         }
 
-        for (Nodo nodo : nodosOrdenados) {
-            String operacion = nodo.getOperacion() != null ? nodo.getOperacion().toUpperCase() : "";
+        // Registro de llamadas a subrutinas pendientes de enlazar (Backpatching de CALL)
+        List<Instruccion> llamadasSubrutinasPendientes = new ArrayList<>();
+        List<String> nombresSubrutinasLlamadas = new ArrayList<>();
 
-            // 1. Apilar los operandos directos (LITERALES y VARIABLES)
-            // Las REFERENCIAS_NODO ya depositaron su valor en la pila en pasos anteriores
-            cargarEntradasDirectas(nodo, instrucciones);
-            
-            switch (operacion) {
-                // --- EXPRESIONES Y MATEMÁTICA ---
-                case "GET_STOCK":
-                    instrucciones.add(new Instruccion(CodigoOperacion.CALL_HOST, "GET_STOCK"));
-                    break;
+        compilarGrafoEnLista(grafo, instrucciones, false, llamadasSubrutinasPendientes, nombresSubrutinasLlamadas);
 
-                case "LESS_THAN":
-                case "OP_CMP_LT":
-                    instrucciones.add(new Instruccion(CodigoOperacion.OP_CMP_LT));
-                    break;
-
-                case "GREATER_THAN":
-                case "OP_CMP_GT":
-                    instrucciones.add(new Instruccion(CodigoOperacion.OP_CMP_GT));
-                    break;
-
-                case "EQUAL":
-                case "OP_CMP_EQ":
-                    instrucciones.add(new Instruccion(CodigoOperacion.OP_CMP_EQ));
-                    break;
-
-                case "ADD":
-                case "OP_ADD":
-                    instrucciones.add(new Instruccion(CodigoOperacion.OP_ADD));
-                    break;
-
-                case "SUB":
-                case "OP_SUB":
-                    instrucciones.add(new Instruccion(CodigoOperacion.OP_SUB));
-                    break;
-
-                // --- CONTROL DE FLUJO ---
-                case "IF_ELSE":
-                    // Consume el booleano en la cima de la pila. Si es falso, salta
-                    instrucciones.add(new Instruccion(CodigoOperacion.JUMP_IF_FALSE, "OFFSET_ELSE"));
-                    break;
-
-                // --- ACCIONES DE GODOT / HOST ---
-                case "SHOW_ALERT":
-                    instrucciones.add(new Instruccion(CodigoOperacion.CALL_HOST, "SHOW_ALERT"));
-                    break;
-
-                case "APPLY_DISCOUNT":
-                    instrucciones.add(new Instruccion(CodigoOperacion.CALL_HOST, "APPLY_DISCOUNT"));
-                    break;
-
-                // --- EVENTOS / DISPARADORES ---
-                case "ON_PRODUCT_SCANNED":
-                    // Evento disparador de inicio
-                    break;
-
-                default:
-                    if (nodo.getTipo() != null && "ACCION".equalsIgnoreCase(nodo.getTipo().toString())) {
-                        instrucciones.add(new Instruccion(CodigoOperacion.CALL_HOST, operacion));
-                    }
-                    break;
-            }
-        }
-
-        // Finalización de la rutina
+        // Instrucción de cierre del programa principal
         instrucciones.add(new Instruccion(CodigoOperacion.HALT));
+
+        // Enlazar y compilar las Subrutinas (Acciones Compuestas) invocadas al final del bytecode
+        Map<String, Integer> direccionesSubrutinas = new LinkedHashMap<>();
+        for (int i = 0; i < nombresSubrutinasLlamadas.size(); i++) {
+            String opSub = nombresSubrutinasLlamadas.get(i);
+            Instruccion instCall = llamadasSubrutinasPendientes.get(i);
+
+            if (!direccionesSubrutinas.containsKey(opSub)) {
+                Grafo grafoSub = cargarGrafoSubrutina(opSub);
+                if (grafoSub != null) {
+                    int dirInicio = instrucciones.size();
+                    direccionesSubrutinas.put(opSub, dirInicio);
+                    compilarGrafoEnLista(grafoSub, instrucciones, true, llamadasSubrutinasPendientes, nombresSubrutinasLlamadas);
+                    instrucciones.add(new Instruccion(CodigoOperacion.RET));
+                } else {
+                    direccionesSubrutinas.put(opSub, instrucciones.size() - 1);
+                }
+            }
+            instCall.setOperando(direccionesSubrutinas.get(opSub));
+        }
 
         return instrucciones;
     }
 
-    private static void cargarEntradasDirectas(Nodo nodo, List<Instruccion> instrucciones) {
-        if (nodo.getDatosEntrada() == null) return;
+    private static void compilarGrafoEnLista(
+            Grafo grafo,
+            List<Instruccion> instrucciones,
+            boolean esSubrutina,
+            List<Instruccion> llamadasSubrutinasPendientes,
+            List<String> nombresSubrutinasLlamadas) {
 
-        for (Map.Entry<String, EntradaDato> entry : nodo.getDatosEntrada().entrySet()) {
-            EntradaDato entrada = entry.getValue();
-            if (entrada == null) continue;
+        Map<Integer, Nodo> mapaNodos = new HashMap<>();
+        Set<Integer> nodosReferenciados = new HashSet<>();
 
-            String fuente = entrada.getFuente();
-            if ("LITERAL".equalsIgnoreCase(fuente)) {
-                instrucciones.add(new Instruccion(CodigoOperacion.PUSH_LITERAL, entrada.getValor()));
-            } else if ("VARIABLE".equalsIgnoreCase(fuente)) {
-                instrucciones.add(new Instruccion(CodigoOperacion.LOAD_VAR, entrada.getNombre()));
+        for (Nodo n : grafo.getNodos()) {
+            mapaNodos.put(n.getId(), n);
+            if (n.getDatosEntrada() != null) {
+                for (EntradaDato ed : n.getDatosEntrada().values()) {
+                    if (ed != null && "REFERENCIA_NODO".equalsIgnoreCase(ed.getFuente()) && ed.getIdOrigen() != null) {
+                        nodosReferenciados.add(ed.getIdOrigen());
+                    }
+                }
             }
         }
+
+        // Inicialización de variables locales del scope actual
+        if (grafo.getVariablesLocales() != null) {
+            if (esSubrutina) {
+                // En una subrutina, los valores iniciales provienen de los argumentos apilados antes de CALL (orden inverso LIFO)
+                for (int i = grafo.getVariablesLocales().size() - 1; i >= 0; i--) {
+                    Map<String, Object> varLocal = grafo.getVariablesLocales().get(i);
+                    String nombre = String.valueOf(varLocal.get("nombre"));
+                    instrucciones.add(new Instruccion(CodigoOperacion.STORE, nombre));
+                }
+            } else {
+                for (Map<String, Object> varLocal : grafo.getVariablesLocales()) {
+                    String nombre = String.valueOf(varLocal.get("nombre"));
+                    Object valorInicial = varLocal.get("valor_inicial");
+                    if (valorInicial == null) valorInicial = 0;
+                    instrucciones.add(new Instruccion(CodigoOperacion.PUSH, formatearLiteral(valorInicial)));
+                    instrucciones.add(new Instruccion(CodigoOperacion.STORE, nombre));
+                }
+            }
+        }
+
+        Nodo nodoEvento = null;
+        for (Nodo n : grafo.getNodos()) {
+            if ("EVENTO".equalsIgnoreCase(n.getTipo())) {
+                nodoEvento = n;
+                break;
+            }
+        }
+        if (nodoEvento == null && !grafo.getNodos().isEmpty()) {
+            nodoEvento = grafo.getNodos().get(0);
+        }
+
+        if (nodoEvento != null) {
+            compilarSecuencia(nodoEvento.getId(), mapaNodos, nodosReferenciados, instrucciones,
+                    llamadasSubrutinasPendientes, nombresSubrutinasLlamadas);
+        }
+    }
+
+    private static void compilarSecuencia(
+            int idActual,
+            Map<Integer, Nodo> mapaNodos,
+            Set<Integer> nodosReferenciados,
+            List<Instruccion> instrucciones,
+            List<Instruccion> llamadasSubrutinasPendientes,
+            List<String> nombresSubrutinasLlamadas) {
+
+        while (idActual > 0) {
+            Nodo nodo = mapaNodos.get(idActual);
+            if (nodo == null) break;
+
+            String tipo = nodo.getTipo() != null ? nodo.getTipo().toUpperCase() : "";
+            String operacion = nodo.getOperacion() != null ? nodo.getOperacion().toUpperCase() : "";
+
+            switch (tipo) {
+                case "EVENTO":
+                    idActual = obtenerSalida(nodo, 0);
+                    break;
+
+                case "CONTROL":
+                    compilarNodoControl(nodo, operacion, mapaNodos, nodosReferenciados, instrucciones,
+                            llamadasSubrutinasPendientes, nombresSubrutinasLlamadas);
+                    idActual = obtenerSalida(nodo, 2);
+                    break;
+
+                case "ACCION":
+                case "ACCIÓN":
+                default:
+                    compilarNodoAccion(nodo, operacion, mapaNodos, nodosReferenciados, instrucciones,
+                            llamadasSubrutinasPendientes, nombresSubrutinasLlamadas);
+                    idActual = obtenerSalida(nodo, 0);
+                    break;
+            }
+        }
+    }
+
+    private static void compilarNodoControl(
+            Nodo nodo,
+            String operacion,
+            Map<Integer, Nodo> mapaNodos,
+            Set<Integer> nodosReferenciados,
+            List<Instruccion> instrucciones,
+            List<Instruccion> llamadasSubrutinasPendientes,
+            List<String> nombresSubrutinasLlamadas) {
+
+        int idRamaVerdadera = obtenerSalida(nodo, 0);
+        int idRamaFalsa = obtenerSalida(nodo, 1);
+
+        if ("IF_ELSE".equals(operacion)) {
+            EntradaDato cond = obtenerEntrada(nodo, "condicion");
+            evaluarEntradaDato(cond, mapaNodos, instrucciones);
+
+            Instruccion jmpIfFalse = new Instruccion(CodigoOperacion.JMP_IF_FALSE, 0);
+            instrucciones.add(jmpIfFalse);
+
+            if (idRamaVerdadera > 0) {
+                compilarSecuencia(idRamaVerdadera, mapaNodos, nodosReferenciados, instrucciones,
+                        llamadasSubrutinasPendientes, nombresSubrutinasLlamadas);
+            }
+
+            if (idRamaFalsa > 0) {
+                Instruccion jmpFinIf = new Instruccion(CodigoOperacion.JMP, 0);
+                instrucciones.add(jmpFinIf);
+
+                jmpIfFalse.setOperando(instrucciones.size());
+
+                compilarSecuencia(idRamaFalsa, mapaNodos, nodosReferenciados, instrucciones,
+                        llamadasSubrutinasPendientes, nombresSubrutinasLlamadas);
+
+                jmpFinIf.setOperando(instrucciones.size());
+            } else {
+                jmpIfFalse.setOperando(instrucciones.size());
+            }
+
+        } else if ("WHILE".equals(operacion)) {
+            int indiceInicioBucle = instrucciones.size();
+
+            EntradaDato cond = obtenerEntrada(nodo, "condicion");
+            evaluarEntradaDato(cond, mapaNodos, instrucciones);
+
+            Instruccion jmpSalida = new Instruccion(CodigoOperacion.JMP_IF_FALSE, 0);
+            instrucciones.add(jmpSalida);
+
+            if (idRamaVerdadera > 0) {
+                compilarSecuencia(idRamaVerdadera, mapaNodos, nodosReferenciados, instrucciones,
+                        llamadasSubrutinasPendientes, nombresSubrutinasLlamadas);
+            }
+
+            instrucciones.add(new Instruccion(CodigoOperacion.JMP, indiceInicioBucle));
+            jmpSalida.setOperando(instrucciones.size());
+
+        } else if ("FOREACH".equals(operacion)) {
+            String varIndice = "__idx_" + nodo.getId();
+            String varSalidaElemento = "__salida_nodo_" + nodo.getId();
+
+            instrucciones.add(new Instruccion(CodigoOperacion.PUSH, 0));
+            instrucciones.add(new Instruccion(CodigoOperacion.STORE, varIndice));
+
+            int indiceInicioFor = instrucciones.size();
+            instrucciones.add(new Instruccion(CodigoOperacion.LOAD, varIndice));
+            EntradaDato coleccion = obtenerEntrada(nodo, "coleccion");
+            evaluarEntradaDato(coleccion, mapaNodos, instrucciones);
+            instrucciones.add(new Instruccion(CodigoOperacion.CALL_HOST, "HAS_NEXT 2"));
+
+            Instruccion jmpSalida = new Instruccion(CodigoOperacion.JMP_IF_FALSE, 0);
+            instrucciones.add(jmpSalida);
+
+            // Obtener elemento actual y guardarlo en el puerto de salida del ForEach
+            instrucciones.add(new Instruccion(CodigoOperacion.LOAD, varIndice));
+            evaluarEntradaDato(coleccion, mapaNodos, instrucciones);
+            instrucciones.add(new Instruccion(CodigoOperacion.CALL_HOST, "GET_ITEM 2"));
+            instrucciones.add(new Instruccion(CodigoOperacion.STORE, varSalidaElemento));
+
+            // Si además se especificó una variable iteradora explícita, actualizarla también
+            EntradaDato varIter = obtenerEntrada(nodo, "variable_iteradora");
+            if (varIter != null && varIter.getNombre() != null && !varIter.getNombre().isEmpty()) {
+                instrucciones.add(new Instruccion(CodigoOperacion.LOAD, varSalidaElemento));
+                instrucciones.add(new Instruccion(CodigoOperacion.STORE, varIter.getNombre()));
+            }
+
+            if (idRamaVerdadera > 0) {
+                compilarSecuencia(idRamaVerdadera, mapaNodos, nodosReferenciados, instrucciones,
+                        llamadasSubrutinasPendientes, nombresSubrutinasLlamadas);
+            }
+
+            instrucciones.add(new Instruccion(CodigoOperacion.LOAD, varIndice));
+            instrucciones.add(new Instruccion(CodigoOperacion.PUSH, 1));
+            instrucciones.add(new Instruccion(CodigoOperacion.ADD));
+            instrucciones.add(new Instruccion(CodigoOperacion.STORE, varIndice));
+            instrucciones.add(new Instruccion(CodigoOperacion.JMP, indiceInicioFor));
+
+            jmpSalida.setOperando(instrucciones.size());
+        }
+    }
+
+    private static void compilarNodoAccion(
+            Nodo nodo,
+            String operacion,
+            Map<Integer, Nodo> mapaNodos,
+            Set<Integer> nodosReferenciados,
+            List<Instruccion> instrucciones,
+            List<Instruccion> llamadasSubrutinasPendientes,
+            List<String> nombresSubrutinasLlamadas) {
+
+        if ("SET_VAR".equals(operacion)) {
+            EntradaDato entradaValor = obtenerEntrada(nodo, "valor");
+            EntradaDato entradaDestino = obtenerEntrada(nodo, "variable_destino");
+            if (entradaDestino != null && entradaDestino.getNombre() != null) {
+                evaluarEntradaDato(entradaValor, mapaNodos, instrucciones);
+                instrucciones.add(new Instruccion(CodigoOperacion.STORE, entradaDestino.getNombre()));
+            }
+            return;
+        }
+
+        // Si es una Subrutina (Acción Compuesta creada por el usuario)
+        if (operacion.startsWith("SUB_")) {
+            apilarArgumentosAccion(nodo, operacion, mapaNodos, instrucciones);
+            Instruccion instCall = new Instruccion(CodigoOperacion.CALL, 0);
+            instrucciones.add(instCall);
+            llamadasSubrutinasPendientes.add(instCall);
+            nombresSubrutinasLlamadas.add(operacion);
+            return;
+        }
+
+        int aridad = apilarArgumentosAccion(nodo, operacion, mapaNodos, instrucciones);
+        instrucciones.add(new Instruccion(CodigoOperacion.CALL_HOST, operacion + " " + aridad));
+
+        if (nodosReferenciados.contains(nodo.getId())) {
+            instrucciones.add(new Instruccion(CodigoOperacion.STORE, "__salida_nodo_" + nodo.getId()));
+        } else {
+            instrucciones.add(new Instruccion(CodigoOperacion.POP));
+        }
+    }
+
+    private static int apilarArgumentosAccion(
+            Nodo nodo,
+            String operacion,
+            Map<Integer, Nodo> mapaNodos,
+            List<Instruccion> instrucciones) {
+
+        if (nodo.getDatosEntrada() == null || nodo.getDatosEntrada().isEmpty()) {
+            return 0;
+        }
+
+        if (ORDEN_PARAMETROS_HOST.containsKey(operacion)) {
+            List<String> orden = ORDEN_PARAMETROS_HOST.get(operacion);
+            for (String nombreParam : orden) {
+                evaluarEntradaDato(obtenerEntrada(nodo, nombreParam), mapaNodos, instrucciones);
+            }
+            return orden.size();
+        }
+
+        int count = 0;
+        for (Map.Entry<String, EntradaDato> entry : nodo.getDatosEntrada().entrySet()) {
+            if (entry.getValue() != null) {
+                evaluarEntradaDato(entry.getValue(), mapaNodos, instrucciones);
+                count++;
+            }
+        }
+        return count;
+    }
+
+    private static void compilarNodoExpresion(
+            Nodo nodoExpr,
+            Map<Integer, Nodo> mapaNodos,
+            List<Instruccion> instrucciones) {
+
+        String op = nodoExpr.getOperacion() != null ? nodoExpr.getOperacion().toUpperCase() : "";
+
+        if ("GET_STOCK".equals(op)) {
+            evaluarEntradaDato(obtenerEntrada(nodoExpr, "producto"), mapaNodos, instrucciones);
+            instrucciones.add(new Instruccion(CodigoOperacion.CALL_HOST, "GET_STOCK 1"));
+            return;
+        }
+
+        evaluarEntradaDato(obtenerEntrada(nodoExpr, "valor_a"), mapaNodos, instrucciones);
+        evaluarEntradaDato(obtenerEntrada(nodoExpr, "valor_b"), mapaNodos, instrucciones);
+
+        switch (op) {
+            case "LESS_THAN", "OP_CMP_LT" -> instrucciones.add(new Instruccion(CodigoOperacion.LT));
+            case "GREATER_THAN", "OP_CMP_GT" -> instrucciones.add(new Instruccion(CodigoOperacion.GT));
+            case "EQUAL", "OP_CMP_EQ" -> instrucciones.add(new Instruccion(CodigoOperacion.EQ));
+            case "ADD", "OP_ADD" -> instrucciones.add(new Instruccion(CodigoOperacion.ADD));
+            case "SUB", "OP_SUB" -> instrucciones.add(new Instruccion(CodigoOperacion.SUB));
+            case "MUL", "OP_MUL" -> instrucciones.add(new Instruccion(CodigoOperacion.MUL));
+            case "DIV", "OP_DIV" -> instrucciones.add(new Instruccion(CodigoOperacion.DIV));
+            case "AND", "OP_AND" -> instrucciones.add(new Instruccion(CodigoOperacion.AND));
+            case "OR", "OP_OR" -> instrucciones.add(new Instruccion(CodigoOperacion.OR));
+            default -> throw new IllegalArgumentException("Operación de expresión desconocida: " + op);
+        }
+    }
+
+    private static void evaluarEntradaDato(
+            EntradaDato entrada,
+            Map<Integer, Nodo> mapaNodos,
+            List<Instruccion> instrucciones) {
+
+        if (entrada == null || entrada.getFuente() == null) {
+            instrucciones.add(new Instruccion(CodigoOperacion.PUSH, 0));
+            return;
+        }
+
+        String fuente = entrada.getFuente().toUpperCase();
+        switch (fuente) {
+            case "LITERAL" -> instrucciones.add(new Instruccion(CodigoOperacion.PUSH, formatearLiteral(entrada.getValor())));
+            case "VARIABLE" -> instrucciones.add(new Instruccion(CodigoOperacion.LOAD, entrada.getNombre()));
+            case "REFERENCIA_NODO" -> {
+                if (entrada.getIdOrigen() != null) {
+                    Nodo nodoOrigen = mapaNodos.get(entrada.getIdOrigen());
+                    if (nodoOrigen != null) {
+                        if ("EXPRESION".equalsIgnoreCase(nodoOrigen.getTipo())) {
+                            compilarNodoExpresion(nodoOrigen, mapaNodos, instrucciones);
+                        } else if ("EVENTO".equalsIgnoreCase(nodoOrigen.getTipo())) {
+                            // Cargar la variable inyectada por el Event Bus según el nombre del puerto de salida del Evento
+                            String puerto = entrada.getPuerto();
+                            if (puerto == null || puerto.isBlank() || "producto_leido".equals(puerto)) {
+                                instrucciones.add(new Instruccion(CodigoOperacion.LOAD, "ProductoActual"));
+                            } else {
+                                instrucciones.add(new Instruccion(CodigoOperacion.LOAD, puerto));
+                            }
+                        } else {
+                            instrucciones.add(new Instruccion(CodigoOperacion.LOAD, "__salida_nodo_" + nodoOrigen.getId()));
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    private static void cargarOrdenDesdeCatalogoJson() {
+        String[] rutas = {
+            "../../compilador-gráfico/catalogo_host.json",
+            "../compilador-gráfico/catalogo_host.json",
+            "catalogo_host.json"
+        };
+        for (String r : rutas) {
+            File f = new File(r);
+            if (f.exists()) {
+                try (FileReader reader = new FileReader(f)) {
+                    Map<String, Object> data = new Gson().fromJson(reader, Map.class);
+                    if (data != null && data.get("acciones") instanceof List<?> acciones) {
+                        for (Object obj : acciones) {
+                            if (obj instanceof Map<?, ?> acc) {
+                                String op = String.valueOf(acc.get("operacion")).toUpperCase();
+                                if (acc.get("orden_entradas") instanceof List<?> ordenRaw) {
+                                    List<String> orden = new ArrayList<>();
+                                    for (Object item : ordenRaw) orden.add(String.valueOf(item));
+                                    ORDEN_PARAMETROS_HOST.put(op, orden);
+                                }
+                            }
+                        }
+                    }
+                    return;
+                } catch (Exception ignored) {
+                }
+            }
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    private static Grafo cargarGrafoSubrutina(String opSub) {
+        String nombreArchivo = opSub.toLowerCase() + ".json";
+        String[] rutas = {
+            "../../compilador-gráfico/subrutinas/" + nombreArchivo,
+            "../compilador-gráfico/subrutinas/" + nombreArchivo,
+            "subrutinas/" + nombreArchivo
+        };
+        Gson gson = new Gson();
+        for (String r : rutas) {
+            File f = new File(r);
+            if (f.exists()) {
+                try (FileReader reader = new FileReader(f)) {
+                    Map<String, Object> wrapper = gson.fromJson(reader, Map.class);
+                    if (wrapper != null && wrapper.containsKey("grafo")) {
+                        String grafoJson = gson.toJson(wrapper.get("grafo"));
+                        return gson.fromJson(grafoJson, Grafo.class);
+                    }
+                } catch (Exception ignored) {
+                }
+            }
+        }
+        return null;
+    }
+
+    private static EntradaDato obtenerEntrada(Nodo nodo, String clave) {
+        if (nodo.getDatosEntrada() == null) return null;
+        return nodo.getDatosEntrada().get(clave);
+    }
+
+    private static int obtenerSalida(Nodo nodo, int indice) {
+        if (nodo.getSalidasEjecucion() == null || indice >= nodo.getSalidasEjecucion().size()) {
+            return 0;
+        }
+        Integer id = nodo.getSalidasEjecucion().get(indice);
+        return id != null ? id : 0;
+    }
+
+    private static Object formatearLiteral(Object valor) {
+        if (valor instanceof Double d) {
+            if (d == Math.floor(d) && !Double.isInfinite(d)) {
+                return d.intValue();
+            }
+        }
+        return valor;
     }
 }

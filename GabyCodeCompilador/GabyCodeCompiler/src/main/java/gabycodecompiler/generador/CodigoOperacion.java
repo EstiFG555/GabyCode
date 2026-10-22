@@ -9,22 +9,26 @@ package gabycodecompiler.generador;
  * @author facu
  */
 
-public enum CodigoOperacion{
-    
-    PUSH_LITERAL,
-    LOAD_VAR,
-    STORE_VAR,
-    OP_ADD,
-    OP_SUB,
-    OP_MUL,
-    OP_DIV,
-    OP_AND,
-    OP_OR,
-    OP_CMP_LT,
-    OP_CMP_GT,
-    OP_CMP_EQ,
-    JUMP,
-    JUMP_IF_FALSE,
+public enum CodigoOperacion {
+    PUSH,
+    POP,
+    LOAD,
+    STORE,
+    ADD,
+    SUB,
+    MUL,
+    DIV,
+    AND,
+    OR,
+    LT,
+    GT,
+    EQ,
+    JMP,
+    JMP_IF_TRUE,
+    JMP_IF_FALSE,
+    CALL,
+    RET,
     CALL_HOST,
+    PRINT,
     HALT
 }

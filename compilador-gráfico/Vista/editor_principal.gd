@@ -9,13 +9,16 @@ var controlador: GestorEditor
 @export var modal_expresion: ModalExpresionUI
 var haciendo_paneo: bool = false
 
-# Referencias UI del Panel Izquierdo (Variables)
+# Referencias UI del Panel Izquierdo (Variables y Archivos)
 var input_nombre_var: LineEdit
 var selector_tipo_var: OptionButton
+var selector_subtipo_array: OptionButton
 var input_valor_var: LineEdit
 var contenedor_lista_vars: VBoxContainer
+var input_nombre_programa: LineEdit
+var dialogo_cargar_json: FileDialog
 
-# Referencias UI del Panel Derecho (Constructor de Bloques Personalizados y Compilación)
+# Referencias UI del Panel Derecho (Constructor de Bloques y Subrutinas)
 var input_titulo_bloque: LineEdit
 var input_op_bloque: LineEdit
 var input_nombre_param: LineEdit
@@ -26,15 +29,6 @@ var contenedor_bloques_custom: VBoxContainer
 var label_estado_compilacion: Label
 
 var parametros_temporales_bloque : Dictionary = {}
-
-const NOMBRES_TIPOS : Dictionary = {
-	GabyEnums.TipoDato.INT: "Entero (INT)",
-	GabyEnums.TipoDato.FLOAT: "Decimal (FLOAT)",
-	GabyEnums.TipoDato.STRING: "Texto (STRING)",
-	GabyEnums.TipoDato.BOOLEAN: "Booleano (BOOL)",
-	GabyEnums.TipoDato.PRODUCTO: "Producto",
-	GabyEnums.TipoDato.ARRAY: "Lista (ARRAY)"
-}
 
 func _ready() -> void:
 	controlador = GestorEditor.new()
@@ -47,7 +41,7 @@ func _ready() -> void:
 	boton_agregar.pressed.connect(_on_boton_agregar_pressed)
 	menu_bloques.instruccion_seleccionada.connect(_on_instruccion_seleccionada_en_menu)
 	
-	_construir_panel_variables_ui()
+	_construir_panel_variables_y_archivos_ui()
 	_construir_panel_creador_bloques_ui()
 	_on_grafo_actualizado()
 	
@@ -58,20 +52,27 @@ func _on_grafo_actualizado() -> void:
 	_actualizar_lista_variables_ui()
 	_actualizar_lista_bloques_custom_ui()
 
-# --- PANEL IZQUIERDO: GESTOR DE VARIABLES ---
-func _construir_panel_variables_ui() -> void:
+func _poblar_selector_tipos(selector: OptionButton, incluir_any: bool = false) -> void:
+	selector.clear()
+	var etiquetas : Dictionary = GabyEnums.obtener_diccionario_etiquetas()
+	for tipo_id in etiquetas.keys():
+		if not incluir_any and tipo_id == GabyEnums.TipoDato.ANY:
+			continue
+		selector.add_item(etiquetas[tipo_id])
+		selector.set_item_metadata(selector.item_count - 1, tipo_id)
+
+# --- PANEL IZQUIERDO: GESTOR DE VARIABLES + GUARDAR/CARGAR PROGRAMAS ---
+func _construir_panel_variables_y_archivos_ui() -> void:
 	var panel_izq = get_node_or_null("Organizador/PanelContainer")
 	if not panel_izq: return
 	
 	var margen := MarginContainer.new()
-	margen.add_theme_constant_override("margin_left", 10)
-	margen.add_theme_constant_override("margin_right", 10)
-	margen.add_theme_constant_override("margin_top", 10)
-	margen.add_theme_constant_override("margin_bottom", 10)
+	for lado in ["margin_left", "margin_right", "margin_top", "margin_bottom"]:
+		margen.add_theme_constant_override(lado, 10)
 	panel_izq.add_child(margen)
 	
 	var vbox := VBoxContainer.new()
-	vbox.add_theme_constant_override("separation", 8)
+	vbox.add_theme_constant_override("separation", 6)
 	margen.add_child(vbox)
 	
 	var titulo := Label.new()
@@ -85,10 +86,18 @@ func _construir_panel_variables_ui() -> void:
 	vbox.add_child(input_nombre_var)
 	
 	selector_tipo_var = OptionButton.new()
-	for tipo_id in NOMBRES_TIPOS.keys():
-		selector_tipo_var.add_item(NOMBRES_TIPOS[tipo_id])
-		selector_tipo_var.set_item_metadata(selector_tipo_var.item_count - 1, tipo_id)
+	_poblar_selector_tipos(selector_tipo_var)
 	vbox.add_child(selector_tipo_var)
+	
+	selector_subtipo_array = OptionButton.new()
+	_poblar_selector_tipos(selector_subtipo_array, true)
+	selector_subtipo_array.hide()
+	vbox.add_child(selector_subtipo_array)
+	
+	selector_tipo_var.item_selected.connect(func(idx: int):
+		var t_id : int = selector_tipo_var.get_item_metadata(idx)
+		selector_subtipo_array.visible = (t_id == GabyEnums.TipoDato.ARRAY)
+	)
 	
 	input_valor_var = LineEdit.new()
 	input_valor_var.placeholder_text = "Valor inicial (opcional)"
@@ -101,10 +110,6 @@ func _construir_panel_variables_ui() -> void:
 	
 	vbox.add_child(HSeparator.new())
 	
-	var subtitulo := Label.new()
-	subtitulo.text = "Variables Declaradas:"
-	vbox.add_child(subtitulo)
-	
 	var scroll_vars := ScrollContainer.new()
 	scroll_vars.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	vbox.add_child(scroll_vars)
@@ -112,12 +117,50 @@ func _construir_panel_variables_ui() -> void:
 	contenedor_lista_vars = VBoxContainer.new()
 	contenedor_lista_vars.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	scroll_vars.add_child(contenedor_lista_vars)
+	
+	vbox.add_child(HSeparator.new())
+	
+	var lbl_arch := Label.new()
+	lbl_arch.text = "ARCHIVOS DE PROGRAMA (.JSON)"
+	lbl_arch.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	vbox.add_child(lbl_arch)
+	
+	input_nombre_programa = LineEdit.new()
+	input_nombre_programa.placeholder_text = "Nombre (ej. caso_venta)"
+	vbox.add_child(input_nombre_programa)
+	
+	var btn_guardar_prog := Button.new()
+	btn_guardar_prog.text = "[ 💾 Guardar Programa ]"
+	btn_guardar_prog.pressed.connect(func():
+		var ruta := controlador.guardar_programa_en_disco(input_nombre_programa.text)
+		_on_compilacion_exitosa(ruta)
+	)
+	vbox.add_child(btn_guardar_prog)
+	
+	var btn_cargar_prog := Button.new()
+	btn_cargar_prog.text = "[ 📂 Cargar Programa JSON... ]"
+	btn_cargar_prog.pressed.connect(func(): dialogo_cargar_json.popup_centered(Vector2i(600, 400)))
+	vbox.add_child(btn_cargar_prog)
+	
+	dialogo_cargar_json = FileDialog.new()
+	dialogo_cargar_json.file_mode = FileDialog.FILE_MODE_OPEN_FILE
+	dialogo_cargar_json.access = FileDialog.ACCESS_FILESYSTEM
+	dialogo_cargar_json.filters = PackedStringArray(["*.json ; Archivos JSON GabyCode"])
+	dialogo_cargar_json.current_dir = ProjectSettings.globalize_path("res://")
+	dialogo_cargar_json.file_selected.connect(func(ruta: String):
+		controlador.cargar_programa_desde_ruta(ruta)
+	)
+	add_child(dialogo_cargar_json)
 
 func _on_crear_variable_pressed() -> void:
 	var nombre = input_nombre_var.text.strip_edges()
 	if nombre == "": return
 	
-	var tipo : GabyEnums.TipoDato = selector_tipo_var.get_item_metadata(selector_tipo_var.selected)
+	var tipo : int = selector_tipo_var.get_item_metadata(selector_tipo_var.selected)
+	var subtipo : int = GabyEnums.TipoDato.ANY
+	if tipo == GabyEnums.TipoDato.ARRAY:
+		subtipo = selector_subtipo_array.get_item_metadata(selector_subtipo_array.selected)
+		
 	var txt_val = input_valor_var.text.strip_edges()
 	var valor_inicial : Variant = 0
 	
@@ -126,9 +169,9 @@ func _on_crear_variable_pressed() -> void:
 		GabyEnums.TipoDato.FLOAT: valor_inicial = txt_val.to_float() if txt_val != "" else 0.0
 		GabyEnums.TipoDato.BOOLEAN: valor_inicial = (txt_val.to_lower() == "true" or txt_val == "1")
 		GabyEnums.TipoDato.STRING: valor_inicial = txt_val
-		_: valor_inicial = null
+		_: valor_inicial = txt_val if txt_val != "" else 0
 		
-	if controlador.crear_variable_local(nombre, tipo, valor_inicial):
+	if controlador.crear_variable_local(nombre, tipo, valor_inicial, subtipo):
 		input_nombre_var.text = ""
 		input_valor_var.text = ""
 
@@ -141,10 +184,15 @@ func _actualizar_lista_variables_ui() -> void:
 		var fila := HBoxContainer.new()
 		var lbl := Label.new()
 		var nombre_var : String = str(v.get("nombre"))
-		var tipo_var : int = v.get("tipo", GabyEnums.TipoDato.ANY)
+		var tipo_var : int = int(v.get("tipo", GabyEnums.TipoDato.ANY))
+		var subtipo_var : int = int(v.get("subtipo", GabyEnums.TipoDato.ANY))
 		var val_ini : Variant = v.get("valor_inicial")
 		
-		lbl.text = "%s (%s) = %s" % [nombre_var, NOMBRES_TIPOS.get(tipo_var, "ANY"), str(val_ini)]
+		var desc_tipo := GabyEnums.obtener_nombre_codigo(tipo_var)
+		if tipo_var == GabyEnums.TipoDato.ARRAY:
+			desc_tipo += "<" + GabyEnums.obtener_nombre_codigo(subtipo_var) + ">"
+			
+		lbl.text = "%s (%s) = %s" % [nombre_var, desc_tipo, str(val_ini)]
 		lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		lbl.clip_text = true
 		fila.add_child(lbl)
@@ -156,16 +204,14 @@ func _actualizar_lista_variables_ui() -> void:
 		
 		contenedor_lista_vars.add_child(fila)
 
-# --- PANEL DERECHO: CREADOR DE BLOQUES PERSONALIZADOS Y COMPILACIÓN ---
+# --- PANEL DERECHO: CREADOR DE BLOQUES Y SUBRUTINAS ---
 func _construir_panel_creador_bloques_ui() -> void:
 	var panel_der = get_node_or_null("Organizador/PanelContainer2")
 	if not panel_der: return
 	
 	var margen := MarginContainer.new()
-	margen.add_theme_constant_override("margin_left", 10)
-	margen.add_theme_constant_override("margin_right", 10)
-	margen.add_theme_constant_override("margin_top", 10)
-	margen.add_theme_constant_override("margin_bottom", 10)
+	for lado in ["margin_left", "margin_right", "margin_top", "margin_bottom"]:
+		margen.add_theme_constant_override(lado, 10)
 	panel_der.add_child(margen)
 	
 	var vbox := VBoxContainer.new()
@@ -173,7 +219,7 @@ func _construir_panel_creador_bloques_ui() -> void:
 	margen.add_child(vbox)
 	
 	var titulo := Label.new()
-	titulo.text = "CREAR BLOQUE ACCIÓN"
+	titulo.text = "CREAR BLOQUE / SUBRUTINA"
 	titulo.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	vbox.add_child(titulo)
 	vbox.add_child(HSeparator.new())
@@ -186,10 +232,6 @@ func _construir_panel_creador_bloques_ui() -> void:
 	input_op_bloque.placeholder_text = "ID Host (ej. RESTOCK_ITEM)"
 	vbox.add_child(input_op_bloque)
 	
-	var lbl_params := Label.new()
-	lbl_params.text = "Añadir Parámetro de Entrada:"
-	vbox.add_child(lbl_params)
-	
 	var fila_param := HBoxContainer.new()
 	input_nombre_param = LineEdit.new()
 	input_nombre_param.placeholder_text = "param"
@@ -198,9 +240,7 @@ func _construir_panel_creador_bloques_ui() -> void:
 	
 	selector_tipo_param = OptionButton.new()
 	selector_tipo_param.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	for tipo_id in NOMBRES_TIPOS.keys():
-		selector_tipo_param.add_item(NOMBRES_TIPOS[tipo_id])
-		selector_tipo_param.set_item_metadata(selector_tipo_param.item_count - 1, tipo_id)
+	_poblar_selector_tipos(selector_tipo_param, true)
 	fila_param.add_child(selector_tipo_param)
 	
 	var btn_add_param := Button.new()
@@ -212,28 +252,30 @@ func _construir_panel_creador_bloques_ui() -> void:
 	contenedor_params_temporales = VBoxContainer.new()
 	vbox.add_child(contenedor_params_temporales)
 	
-	var lbl_retorno := Label.new()
-	lbl_retorno.text = "Valor de Retorno (Salida):"
-	vbox.add_child(lbl_retorno)
-	
 	selector_retorno_bloque = OptionButton.new()
 	selector_retorno_bloque.add_item("Sin Retorno (Void)")
 	selector_retorno_bloque.set_item_metadata(0, -1)
-	for tipo_id in NOMBRES_TIPOS.keys():
-		selector_retorno_bloque.add_item("Devuelve: " + NOMBRES_TIPOS[tipo_id])
+	var etiquetas : Dictionary = GabyEnums.obtener_diccionario_etiquetas()
+	for tipo_id in etiquetas.keys():
+		selector_retorno_bloque.add_item("Devuelve: " + etiquetas[tipo_id])
 		selector_retorno_bloque.set_item_metadata(selector_retorno_bloque.item_count - 1, tipo_id)
 	vbox.add_child(selector_retorno_bloque)
 	
 	var btn_guardar_bloque := Button.new()
-	btn_guardar_bloque.text = "[ 💾 Guardar Nuevo Bloque ]"
+	btn_guardar_bloque.text = "[ 💾 Guardar Acción Host ]"
 	btn_guardar_bloque.pressed.connect(_on_guardar_bloque_personalizado_pressed)
 	vbox.add_child(btn_guardar_bloque)
 	
-	vbox.add_child(HSeparator.new())
+	var btn_guardar_sub := Button.new()
+	btn_guardar_sub.text = "[ 🧩 Guardar Flujo como Subrutina ]"
+	btn_guardar_sub.pressed.connect(func():
+		if controlador.guardar_programa_actual_como_subrutina(input_titulo_bloque.text, input_op_bloque.text):
+			input_titulo_bloque.text = ""
+			input_op_bloque.text = ""
+	)
+	vbox.add_child(btn_guardar_sub)
 	
-	var lbl_custom := Label.new()
-	lbl_custom.text = "Bloques Personalizados:"
-	vbox.add_child(lbl_custom)
+	vbox.add_child(HSeparator.new())
 	
 	var scroll_custom := ScrollContainer.new()
 	scroll_custom.size_flags_vertical = Control.SIZE_EXPAND_FILL
@@ -260,7 +302,7 @@ func _construir_panel_creador_bloques_ui() -> void:
 func _on_agregar_param_temporal_pressed() -> void:
 	var nom_p : String = input_nombre_param.text.strip_edges().to_lower().replace(" ", "_")
 	if nom_p == "": return
-	var tipo_p : GabyEnums.TipoDato = selector_tipo_param.get_item_metadata(selector_tipo_param.selected)
+	var tipo_p : int = selector_tipo_param.get_item_metadata(selector_tipo_param.selected)
 	parametros_temporales_bloque[StringName(nom_p)] = tipo_p
 	input_nombre_param.text = ""
 	_actualizar_lista_params_temporales_ui()
@@ -271,7 +313,7 @@ func _actualizar_lista_params_temporales_ui() -> void:
 	for k in parametros_temporales_bloque.keys():
 		var fila := HBoxContainer.new()
 		var lbl := Label.new()
-		lbl.text = "• %s (%s)" % [String(k), NOMBRES_TIPOS.get(parametros_temporales_bloque[k], "ANY")]
+		lbl.text = "• %s (%s)" % [String(k), GabyEnums.obtener_nombre_codigo(parametros_temporales_bloque[k])]
 		lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		fila.add_child(lbl)
 		
@@ -325,9 +367,8 @@ func _actualizar_lista_bloques_custom_ui() -> void:
 
 func _on_compilacion_exitosa(ruta: String) -> void:
 	if label_estado_compilacion:
-		label_estado_compilacion.text = "✅ JSON exportado en:\n" + ruta
+		label_estado_compilacion.text = "✅ Guardado en:\n" + ruta
 
-# --- NAVEGACIÓN Y MENÚ FLOTANTE ---
 func _centrar_camara() -> void:
 	if scroll_container:
 		scroll_container.scroll_horizontal = 2000 - int(scroll_container.size.x / 2)

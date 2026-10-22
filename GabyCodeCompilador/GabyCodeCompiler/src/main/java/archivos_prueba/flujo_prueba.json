@@ -3,16 +3,72 @@
 		{
 			"datos_entrada": {},
 			"id": 1,
-			"operacion": "ON_PRODUCT_SCANNED",
+			"operacion": "ON_CHRISTMAS_PROMO",
 			"salidas_ejecucion": [
 				2
 			],
 			"tipo": "EVENTO"
 		},
 		{
-			"datos_entrada": {},
+			"datos_entrada": {
+				"coleccion": {
+					"fuente": "REFERENCIA_NODO",
+					"id_origen": 1,
+					"puerto": "lista_ids_descuento"
+				}
+			},
 			"id": 2,
+			"operacion": "FOREACH",
+			"salidas_ejecucion": [
+				3,
+				0,
+				0
+			],
+			"tipo": "CONTROL"
+		},
+		{
+			"datos_entrada": {
+				"id_producto": {
+					"fuente": "REFERENCIA_NODO",
+					"id_origen": 2,
+					"puerto": "elemento_actual"
+				}
+			},
+			"id": 3,
+			"operacion": "GET_PRODUCT_BY_ID",
+			"salidas_ejecucion": [
+				4
+			],
+			"tipo": "ACCION"
+		},
+		{
+			"datos_entrada": {
+				"porcentaje": {
+					"fuente": "LITERAL",
+					"valor": 30
+				},
+				"producto": {
+					"fuente": "REFERENCIA_NODO",
+					"id_origen": 3,
+					"puerto": "producto"
+				}
+			},
+			"id": 4,
 			"operacion": "APPLY_DISCOUNT",
+			"salidas_ejecucion": [
+				5
+			],
+			"tipo": "ACCION"
+		},
+		{
+			"datos_entrada": {
+				"mensaje": {
+					"fuente": "LITERAL",
+					"valor": "Descuento Aplicado"
+				}
+			},
+			"id": 5,
+			"operacion": "SHOW_ALERT",
 			"salidas_ejecucion": [],
 			"tipo": "ACCION"
 		}
