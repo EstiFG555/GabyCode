@@ -1,110 +1,158 @@
 {
-	"tipos_objetos": [
-		"PRODUCTO",
-		"VENTA",
-		"CLIENTE"
-	],
-	"eventos": [
-		{
-			"operacion": "ON_PRODUCT_SCANNED",
-			"nombre_visual": "Evento: Al Escanear Producto",
-			"salidas": {
-				"producto_leido": { "tipo": "PRODUCTO" }
-			}
-		},
-		{
-			"operacion": "ON_SALE_FINISHED",
-			"nombre_visual": "Evento: Finalizar Venta",
-			"salidas": {
-				"lista_productos": { "tipo": "ARRAY", "subtipo": "PRODUCTO" }
-			}
-		},
-		{
-			"operacion": "ON_CHRISTMAS_PROMO",
-			"nombre_visual": "Evento: Se acerca Navidad",
-			"salidas": {
-				"lista_ids_descuento": { "tipo": "ARRAY", "subtipo": "INT" }
-			}
-		},
-		{
-			"operacion": "SUBROUTINE_ENTRY",
-			"nombre_visual": "Inicio de Subrutina (Acción Compuesta)",
-			"salidas": {
-				"parametro_entrada": { "tipo": "ANY" }
-			}
-		}
-	],
 	"acciones": [
 		{
-			"operacion": "GET_STOCK",
-			"nombre_visual": "Obtener Stock de Producto",
-			"orden_entradas": ["producto"],
 			"entradas": {
 				"producto": "PRODUCTO"
 			},
+			"nombre_visual": "Obtener Stock de Producto",
+			"operacion": "GET_STOCK",
+			"orden_entradas": [
+				"producto"
+			],
 			"salidas": {
-				"resultado": { "tipo": "INT" }
+				"resultado": {
+					"tipo": "INT"
+				}
 			}
 		},
 		{
-			"operacion": "GET_PRODUCT_BY_ID",
-			"nombre_visual": "Obtener Producto",
-			"orden_entradas": ["id_producto"],
 			"entradas": {
 				"id_producto": "INT"
 			},
+			"nombre_visual": "Obtener Producto",
+			"operacion": "GET_PRODUCT_BY_ID",
+			"orden_entradas": [
+				"id_producto"
+			],
 			"salidas": {
-				"producto": { "tipo": "PRODUCTO" }
+				"producto": {
+					"tipo": "PRODUCTO"
+				}
 			}
 		},
 		{
-			"operacion": "APPLY_DISCOUNT",
-			"nombre_visual": "Aplicar Descuento",
-			"orden_entradas": ["producto", "porcentaje"],
 			"entradas": {
-				"producto": "PRODUCTO",
-				"porcentaje": "INT"
+				"porcentaje": "INT",
+				"producto": "PRODUCTO"
 			},
+			"nombre_visual": "Aplicar Descuento",
+			"operacion": "APPLY_DISCOUNT",
+			"orden_entradas": [
+				"producto",
+				"porcentaje"
+			],
 			"salidas": {}
 		},
 		{
-			"operacion": "SHOW_ALERT",
-			"nombre_visual": "Mostrar Mensaje / Alerta",
-			"orden_entradas": ["mensaje"],
 			"entradas": {
 				"mensaje": "STRING"
 			},
+			"nombre_visual": "Mostrar Mensaje / Alerta",
+			"operacion": "SHOW_ALERT",
+			"orden_entradas": [
+				"mensaje"
+			],
 			"salidas": {}
 		},
 		{
-			"operacion": "CALCULATE_SALE_TOTAL",
-			"nombre_visual": "Calcular Total de Venta",
-			"orden_entradas": ["lista_productos"],
 			"entradas": {
 				"lista_productos": "ARRAY"
 			},
+			"nombre_visual": "Calcular Total de Venta",
+			"operacion": "CALCULATE_SALE_TOTAL",
+			"orden_entradas": [
+				"lista_productos"
+			],
 			"salidas": {
-				"total": { "tipo": "FLOAT" }
+				"total": {
+					"tipo": "FLOAT"
+				}
 			}
 		},
 		{
-			"operacion": "REGISTER_SALE",
-			"nombre_visual": "Registrar Venta",
-			"orden_entradas": ["lista_productos", "total"],
 			"entradas": {
 				"lista_productos": "ARRAY",
 				"total": "FLOAT"
 			},
+			"nombre_visual": "Registrar Venta",
+			"operacion": "REGISTER_SALE",
+			"orden_entradas": [
+				"lista_productos",
+				"total"
+			],
 			"salidas": {}
 		},
 		{
-			"operacion": "SHOW_TOTAL",
-			"nombre_visual": "Mostrar Total",
-			"orden_entradas": ["total"],
 			"entradas": {
 				"total": "FLOAT"
 			},
+			"nombre_visual": "Mostrar Total",
+			"operacion": "SHOW_TOTAL",
+			"orden_entradas": [
+				"total"
+			],
 			"salidas": {}
+		},
+		{
+			"entradas": {
+				"producto": "PRODUCTO"
+			},
+			"es_personalizado": true,
+			"nombre_visual": "RestarProducto",
+			"operacion": "RESTAR_PRODUCTO",
+			"orden_entradas": [
+				"producto"
+			],
+			"salidas": {
+				"resultado": {
+					"tipo": "INT"
+				}
+			}
 		}
+	],
+	"eventos": [
+		{
+			"nombre_visual": "Evento: Al Escanear Producto",
+			"operacion": "ON_PRODUCT_SCANNED",
+			"salidas": {
+				"producto_leido": {
+					"tipo": "PRODUCTO"
+				}
+			}
+		},
+		{
+			"nombre_visual": "Evento: Finalizar Venta",
+			"operacion": "ON_SALE_FINISHED",
+			"salidas": {
+				"lista_productos": {
+					"subtipo": "PRODUCTO",
+					"tipo": "ARRAY"
+				}
+			}
+		},
+		{
+			"nombre_visual": "Evento: Se acerca Navidad",
+			"operacion": "ON_CHRISTMAS_PROMO",
+			"salidas": {
+				"lista_ids_descuento": {
+					"subtipo": "INT",
+					"tipo": "ARRAY"
+				}
+			}
+		},
+		{
+			"nombre_visual": "Inicio de Subrutina (Acción Compuesta)",
+			"operacion": "SUBROUTINE_ENTRY",
+			"salidas": {
+				"parametro_entrada": {
+					"tipo": "ANY"
+				}
+			}
+		}
+	],
+	"tipos_objetos": [
+		"PRODUCTO",
+		"VENTA",
+		"CLIENTE"
 	]
 }

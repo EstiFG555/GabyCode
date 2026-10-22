@@ -3,72 +3,52 @@
 		{
 			"datos_entrada": {},
 			"id": 1,
-			"operacion": "ON_CHRISTMAS_PROMO",
+			"operacion": "ON_PRODUCT_SCANNED",
+			"orden_parametros": [],
+			"retorno_subrutina": {},
 			"salidas_ejecucion": [
 				2
 			],
+			"salidas_evento": {
+				"producto_leido": {
+					"tipo": "PRODUCTO"
+				}
+			},
 			"tipo": "EVENTO"
 		},
 		{
 			"datos_entrada": {
-				"coleccion": {
-					"fuente": "REFERENCIA_NODO",
-					"id_origen": 1,
-					"puerto": "lista_ids_descuento"
+				"numero": {
+					"fuente": "LITERAL",
+					"valor": 3
+				},
+				"potencia": {
+					"fuente": "LITERAL",
+					"valor": 3
 				}
 			},
 			"id": 2,
-			"operacion": "FOREACH",
+			"operacion": "SUB_CALC_POW",
 			"salidas_ejecucion": [
-				3,
-				0,
-				0
-			],
-			"tipo": "CONTROL"
-		},
-		{
-			"datos_entrada": {
-				"id_producto": {
-					"fuente": "REFERENCIA_NODO",
-					"id_origen": 2,
-					"puerto": "elemento_actual"
-				}
-			},
-			"id": 3,
-			"operacion": "GET_PRODUCT_BY_ID",
-			"salidas_ejecucion": [
-				4
+				3
 			],
 			"tipo": "ACCION"
 		},
 		{
 			"datos_entrada": {
 				"porcentaje": {
-					"fuente": "LITERAL",
-					"valor": 30
+					"fuente": "REFERENCIA_NODO",
+					"id_origen": 2,
+					"puerto": "resultado"
 				},
 				"producto": {
 					"fuente": "REFERENCIA_NODO",
-					"id_origen": 3,
-					"puerto": "producto"
+					"id_origen": 1,
+					"puerto": "producto_leido"
 				}
 			},
-			"id": 4,
+			"id": 3,
 			"operacion": "APPLY_DISCOUNT",
-			"salidas_ejecucion": [
-				5
-			],
-			"tipo": "ACCION"
-		},
-		{
-			"datos_entrada": {
-				"mensaje": {
-					"fuente": "LITERAL",
-					"valor": "Descuento Aplicado"
-				}
-			},
-			"id": 5,
-			"operacion": "SHOW_ALERT",
 			"salidas_ejecucion": [],
 			"tipo": "ACCION"
 		}

@@ -1,0 +1,186 @@
+{
+	"entradas": {
+		"numero": "INT",
+		"potencia": "INT"
+	},
+	"grafo": {
+		"nodos": [
+			{
+				"datos_entrada": {},
+				"id": 1.0,
+				"operacion": "SUBROUTINE_ENTRY",
+				"orden_parametros": [
+					"numero",
+					"potencia"
+				],
+				"retorno_subrutina": {
+					"tipo": "INT"
+				},
+				"salidas_ejecucion": [
+					2.0
+				],
+				"salidas_evento": {
+					"numero": {
+						"tipo": "INT"
+					},
+					"potencia": {
+						"tipo": "INT"
+					}
+				},
+				"tipo": "EVENTO"
+			},
+			{
+				"datos_entrada": {
+					"condicion": {
+						"fuente": "REFERENCIA_NODO",
+						"id_origen": 11.0,
+						"puerto": "resultado"
+					}
+				},
+				"id": 2.0,
+				"operacion": "WHILE",
+				"salidas_ejecucion": [
+					6.0,
+					0.0,
+					12.0
+				],
+				"tipo": "CONTROL"
+			},
+			{
+				"datos_entrada": {
+					"condicion": {
+						"fuente": "REFERENCIA_NODO",
+						"id_origen": 7.0,
+						"puerto": "resultado"
+					}
+				},
+				"id": 6.0,
+				"operacion": "IF_ELSE",
+				"salidas_ejecucion": [
+					8.0,
+					9.0,
+					0.0
+				],
+				"tipo": "CONTROL"
+			},
+			{
+				"datos_entrada": {
+					"valor_a": {
+						"fuente": "VARIABLE",
+						"nombre": "Contador"
+					},
+					"valor_b": {
+						"fuente": "LITERAL",
+						"valor": 1.0
+					}
+				},
+				"id": 7.0,
+				"operacion": "EQUAL",
+				"tipo": "EXPRESION"
+			},
+			{
+				"datos_entrada": {
+					"valor": {
+						"fuente": "REFERENCIA_NODO",
+						"id_origen": 1.0,
+						"puerto": "numero"
+					},
+					"variable_destino": {
+						"fuente": "VARIABLE",
+						"nombre": "Resultado"
+					}
+				},
+				"id": 8.0,
+				"operacion": "SET_VAR",
+				"salidas_ejecucion": [],
+				"tipo": "ACCION"
+			},
+			{
+				"datos_entrada": {
+					"valor": {
+						"fuente": "REFERENCIA_NODO",
+						"id_origen": 10.0,
+						"puerto": "resultado"
+					},
+					"variable_destino": {
+						"fuente": "VARIABLE",
+						"nombre": "Resultado"
+					}
+				},
+				"id": 9.0,
+				"operacion": "SET_VAR",
+				"salidas_ejecucion": [],
+				"tipo": "ACCION"
+			},
+			{
+				"datos_entrada": {
+					"valor_a": {
+						"fuente": "VARIABLE",
+						"nombre": "Resultado"
+					},
+					"valor_b": {
+						"fuente": "REFERENCIA_NODO",
+						"id_origen": 1.0,
+						"puerto": "numero"
+					}
+				},
+				"id": 10.0,
+				"operacion": "MUL",
+				"tipo": "EXPRESION"
+			},
+			{
+				"datos_entrada": {
+					"valor_a": {
+						"fuente": "VARIABLE",
+						"nombre": "Contador"
+					},
+					"valor_b": {
+						"fuente": "REFERENCIA_NODO",
+						"id_origen": 1.0,
+						"puerto": "potencia"
+					}
+				},
+				"id": 11.0,
+				"operacion": "LESS_THAN",
+				"tipo": "EXPRESION"
+			},
+			{
+				"datos_entrada": {
+					"valor_retorno": {
+						"fuente": "VARIABLE",
+						"nombre": "Resultado"
+					}
+				},
+				"id": 12.0,
+				"operacion": "RETURN_VAL",
+				"salidas_ejecucion": [],
+				"tipo": "ACCION"
+			}
+		],
+		"variables_locales": [
+			{
+				"nombre": "Contador",
+				"subtipo": 6.0,
+				"tipo": 0.0,
+				"valor_inicial": 0.0
+			},
+			{
+				"nombre": "Resultado",
+				"subtipo": 6.0,
+				"tipo": 0.0,
+				"valor_inicial": 1.0
+			}
+		]
+	},
+	"nombre_visual": "[Subrutina] Calcular Potencia",
+	"operacion": "SUB_CALC_POW",
+	"orden_entradas": [
+		"numero",
+		"potencia"
+	],
+	"salidas": {
+		"resultado": {
+			"tipo": "INT"
+		}
+	}
+}

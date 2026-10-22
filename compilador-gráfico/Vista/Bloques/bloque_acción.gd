@@ -20,28 +20,33 @@ func inicializar(id_asignado : int, titulo : String, entradas_esperadas : Dictio
 		label_param.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		fila.add_child(label_param)
 		
+		var opciones_validas : Array = funcion_buscar_opciones.call(id_logico, nombre_parametro)
+		for opcion in opciones_validas:
+			if opcion["datos_conexion"].get("fuente") == "CREAR_EXPRESION":
+				tipo_req = opcion["datos_conexion"].get("tipo_esperado", tipo_req)
+				
+		var permite_literal : bool = (not es_selector_variable_destino) and _es_tipo_literal_permitido(tipo_req)
+		
 		var option_btn := OptionButton.new()
 		option_btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		option_btn.add_item("Elegir Variable..." if es_selector_variable_destino else "Conectar...")
+		if es_selector_variable_destino:
+			option_btn.add_item("Elegir Variable...")
+		elif permite_literal:
+			option_btn.add_item("[ ✏️ Escribir Literal ]")
+		else:
+			option_btn.add_item("Conectar (" + GabyEnums.obtener_nombre_codigo(tipo_req) + ")...")
 		option_btn.set_item_metadata(0, null)
 		
 		var literal_input := LineEdit.new()
-		literal_input.placeholder_text = "Literal..."
+		literal_input.placeholder_text = "Valor " + GabyEnums.obtener_nombre_codigo(tipo_req) + "..."
 		literal_input.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		if es_selector_variable_destino:
-			literal_input.hide()
 		
-		var opciones_validas : Array = funcion_buscar_opciones.call(id_logico, nombre_parametro)
 		var idx : int = 1
 		var indice_a_seleccionar : int = 0
 		
 		for opcion in opciones_validas:
 			option_btn.add_item(opcion["texto_mostrar"])
 			option_btn.set_item_metadata(idx, opcion["datos_conexion"])
-			
-			# Si hay opción de crear expresión, aprovechamos su tipo inferido (útil en SET_VAR)
-			if opcion["datos_conexion"].get("fuente") == "CREAR_EXPRESION":
-				tipo_req = opcion["datos_conexion"].get("tipo_esperado", tipo_req)
 			
 			if estado_guardado.has(nombre_parametro):
 				var conexion_guardada : Variant = estado_guardado[nombre_parametro]
@@ -57,16 +62,24 @@ func inicializar(id_asignado : int, titulo : String, entradas_esperadas : Dictio
 			if typeof(conexion_guardada) == TYPE_DICTIONARY and conexion_guardada.get("fuente") == "LITERAL":
 				literal_guardado_str = str(conexion_guardada.get("valor"))
 				literal_input.text = literal_guardado_str
+				
+		# EXCLUSIÓN MUTUA VISUAL: Solo mostrar LineEdit si permite literal y NO hay conexión activa
+		literal_input.visible = permite_literal and (indice_a_seleccionar == 0)
 		
 		option_btn.item_selected.connect(func(index: int):
 			var valor = option_btn.get_item_metadata(index)
-			if index > 0: literal_input.text = ""
-			
 			if typeof(valor) == TYPE_DICTIONARY and valor.get("fuente") == "CREAR_EXPRESION":
 				solicitar_creacion_expresion.emit(id_logico, nombre_parametro, valor.get("tipo_esperado"))
 				option_btn.select(indice_a_seleccionar)
-			else:
+				return
+				
+			if index > 0:
+				literal_input.text = ""
+				literal_input.hide()
 				parametro_modificado.emit(id_logico, nombre_parametro, valor)
+			else:
+				literal_input.visible = permite_literal
+				parametro_modificado.emit(id_logico, nombre_parametro, null)
 		)
 		
 		literal_input.text_submitted.connect(func(new_text: String):
@@ -81,17 +94,26 @@ func inicializar(id_asignado : int, titulo : String, entradas_esperadas : Dictio
 		fila.add_child(literal_input)
 		contenedor_parametros.add_child(fila)
 
+func _es_tipo_literal_permitido(tipo_req: int) -> bool:
+	return tipo_req in [
+		GabyEnums.TipoDato.INT,
+		GabyEnums.TipoDato.FLOAT,
+		GabyEnums.TipoDato.STRING,
+		GabyEnums.TipoDato.BOOLEAN
+	]
+
 func _procesar_ingreso_literal(nuevo_texto: String, texto_viejo: String, option_btn: OptionButton, tipo_req: int, parametro: StringName) -> void:
+	if not _es_tipo_literal_permitido(tipo_req): return
+	if option_btn.selected > 0: return
 	if nuevo_texto == texto_viejo: return
 	
 	if nuevo_texto.strip_edges() != "":
-		option_btn.select(0)
 		var valor_casteado = _castear_literal(nuevo_texto, tipo_req)
 		parametro_modificado.emit(id_logico, parametro, {"fuente": "LITERAL", "valor": valor_casteado})
 	elif texto_viejo != "":
 		parametro_modificado.emit(id_logico, parametro, null)
 
-func _castear_literal(texto: String, tipo_esperado: GabyEnums.TipoDato) -> Variant:
+func _castear_literal(texto: String, tipo_esperado: int) -> Variant:
 	var txt = texto.strip_edges()
 	match tipo_esperado:
 		GabyEnums.TipoDato.INT: return txt.to_int()

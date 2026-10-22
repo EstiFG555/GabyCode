@@ -1,0 +1,96 @@
+{
+	"nodos": [
+		{
+			"datos_entrada": {},
+			"id": 1,
+			"operacion": "ON_PRODUCT_SCANNED",
+			"salidas_ejecucion": [
+				2
+			],
+			"tipo": "EVENTO"
+		},
+		{
+			"datos_entrada": {
+				"condicion": {
+					"fuente": "REFERENCIA_NODO",
+					"id_origen": 3,
+					"puerto": "resultado"
+				}
+			},
+			"id": 2,
+			"operacion": "IF_ELSE",
+			"salidas_ejecucion": [
+				4,
+				6,
+				0
+			],
+			"tipo": "CONTROL"
+		},
+		{
+			"datos_entrada": {
+				"valor_a": {
+					"fuente": "VARIABLE",
+					"nombre": "ID_Producto"
+				},
+				"valor_b": {
+					"fuente": "LITERAL",
+					"valor": 5
+				}
+			},
+			"id": 3,
+			"operacion": "EQUAL",
+			"tipo": "EXPRESION"
+		},
+		{
+			"datos_entrada": {
+				"porcentaje": {
+					"fuente": "LITERAL",
+					"valor": 50
+				},
+				"producto": {
+					"fuente": "REFERENCIA_NODO",
+					"id_origen": 1,
+					"puerto": "producto_leido"
+				}
+			},
+			"id": 4,
+			"operacion": "APPLY_DISCOUNT",
+			"salidas_ejecucion": [
+				5
+			],
+			"tipo": "ACCION"
+		},
+		{
+			"datos_entrada": {
+				"mensaje": {
+					"fuente": "LITERAL",
+					"valor": "Se aplico descuento"
+				}
+			},
+			"id": 5,
+			"operacion": "SHOW_ALERT",
+			"salidas_ejecucion": [],
+			"tipo": "ACCION"
+		},
+		{
+			"datos_entrada": {
+				"mensaje": {
+					"fuente": "LITERAL",
+					"valor": "No se aplicó descuento"
+				}
+			},
+			"id": 6,
+			"operacion": "SHOW_ALERT",
+			"salidas_ejecucion": [],
+			"tipo": "ACCION"
+		}
+	],
+	"variables_locales": [
+		{
+			"nombre": "ID_Producto",
+			"subtipo": 6,
+			"tipo": 0,
+			"valor_inicial": 5
+		}
+	]
+}
