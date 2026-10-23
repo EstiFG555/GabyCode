@@ -59,7 +59,7 @@
 				"salidas_ejecucion": [
 					8.0,
 					9.0,
-					0.0
+					13.0
 				],
 				"tipo": "CONTROL"
 			},
@@ -155,6 +155,38 @@
 				"operacion": "RETURN_VAL",
 				"salidas_ejecucion": [],
 				"tipo": "ACCION"
+			},
+			{
+				"datos_entrada": {
+					"valor": {
+						"fuente": "REFERENCIA_NODO",
+						"id_origen": 14.0,
+						"puerto": "resultado"
+					},
+					"variable_destino": {
+						"fuente": "VARIABLE",
+						"nombre": "Contador"
+					}
+				},
+				"id": 13.0,
+				"operacion": "SET_VAR",
+				"salidas_ejecucion": [],
+				"tipo": "ACCION"
+			},
+			{
+				"datos_entrada": {
+					"valor_a": {
+						"fuente": "VARIABLE",
+						"nombre": "Contador"
+					},
+					"valor_b": {
+						"fuente": "LITERAL",
+						"valor": 1.0
+					}
+				},
+				"id": 14.0,
+				"operacion": "ADD",
+				"tipo": "EXPRESION"
 			}
 		],
 		"variables_locales": [

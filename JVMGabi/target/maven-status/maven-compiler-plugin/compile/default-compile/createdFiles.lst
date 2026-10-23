@@ -1,6 +1,11 @@
+com\mycompany\jvmgabi\MaquinaVirtual$ExcepcionEjecucionVM.class
 com\mycompany\jvmgabi\MaquinaVirtual$Producto.class
-com\mycompany\jvmgabi\EventBusDespensa.class
+com\mycompany\jvmgabi\MaquinaVirtual$FuncionHost.class
 com\mycompany\jvmgabi\MaquinaVirtual.class
 com\mycompany\jvmgabi\SimuladorDespensaUI.class
 com\mycompany\jvmgabi\JVMGabi.class
 com\mycompany\jvmgabi\SimuladorDespensaUI$1.class
+com\mycompany\jvmgabi\EventBusDespensa$DefinicionEvento.class
+com\mycompany\jvmgabi\EventBusDespensa.class
+com\mycompany\jvmgabi\EventBusDespensa$SalidaPuerto.class
+com\mycompany\jvmgabi\EventBusDespensa$DefinicionAccionHost.class

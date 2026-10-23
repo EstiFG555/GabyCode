@@ -1,26 +1,10 @@
 PUSH 0
-STORE __idx_2
-LOAD __idx_2
-LOAD lista_ids_descuento
-CALL_HOST HAS_NEXT 2
-JMP_IF_FALSE 25
-LOAD __idx_2
-LOAD lista_ids_descuento
-CALL_HOST GET_ITEM 2
-STORE __salida_nodo_2
-LOAD __salida_nodo_2
-CALL_HOST GET_PRODUCT_BY_ID 1
-STORE __salida_nodo_3
-LOAD __salida_nodo_3
-PUSH 30
+JMP_IF_FALSE 7
+LOAD ProductoActual
+PUSH 0
 CALL_HOST APPLY_DISCOUNT 2
 POP
-PUSH Descuento Aplicado
-CALL_HOST SHOW_ALERT 1
+JMP 9
+CALL_HOST SHOW_ALERT 0
 POP
-LOAD __idx_2
-PUSH 1
-ADD
-STORE __idx_2
-JMP 2
 HALT
