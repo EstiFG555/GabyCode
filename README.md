@@ -22,13 +22,13 @@
       
   - #### Como Ejecutar Pruebas
 
-      - #### Caso N°1. Aplicar descuento a producto escaneado.
+      - ##### Caso N°1. Aplicar descuento a producto escaneado.
 
 
-      - ### Caso N°2. Aplicar descuento selectivamente.
+      - ##### Caso N°2. Aplicar descuento selectivamente.
 
 
-      - ### Caso N°3. Se acerca navidad.
+      - ##### Caso N°3. Se acerca navidad.
           
         
 
