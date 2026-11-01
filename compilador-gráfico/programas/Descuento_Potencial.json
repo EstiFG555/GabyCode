@@ -1,0 +1,57 @@
+{
+	"nodos": [
+		{
+			"datos_entrada": {},
+			"id": 1,
+			"operacion": "ON_PRODUCT_SCANNED",
+			"orden_parametros": [],
+			"retorno_subrutina": {},
+			"salidas_ejecucion": [
+				2
+			],
+			"salidas_evento": {
+				"producto_leido": {
+					"tipo": "PRODUCTO"
+				}
+			},
+			"tipo": "EVENTO"
+		},
+		{
+			"datos_entrada": {
+				"numero": {
+					"fuente": "LITERAL",
+					"valor": 3
+				},
+				"potencia": {
+					"fuente": "LITERAL",
+					"valor": 3
+				}
+			},
+			"id": 2,
+			"operacion": "SUB_CALC_POW",
+			"salidas_ejecucion": [
+				3
+			],
+			"tipo": "ACCION"
+		},
+		{
+			"datos_entrada": {
+				"porcentaje": {
+					"fuente": "REFERENCIA_NODO",
+					"id_origen": 2,
+					"puerto": "resultado"
+				},
+				"producto": {
+					"fuente": "REFERENCIA_NODO",
+					"id_origen": 1,
+					"puerto": "producto_leido"
+				}
+			},
+			"id": 3,
+			"operacion": "APPLY_DISCOUNT",
+			"salidas_ejecucion": [],
+			"tipo": "ACCION"
+		}
+	],
+	"variables_locales": []
+}

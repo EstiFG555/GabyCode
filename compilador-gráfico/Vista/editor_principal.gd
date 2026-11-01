@@ -9,7 +9,7 @@ var controlador: GestorEditor
 @export var modal_expresion: ModalExpresionUI
 var haciendo_paneo: bool = false
 
-# Referencias UI del Panel Izquierdo (Variables y Archivos)
+# Referencias UI del Panel Izquierdo (Variables Locales y Archivos)
 var input_nombre_var: LineEdit
 var selector_tipo_var: OptionButton
 var selector_subtipo_array: OptionButton
@@ -18,17 +18,18 @@ var contenedor_lista_vars: VBoxContainer
 var input_nombre_programa: LineEdit
 var dialogo_cargar_json: FileDialog
 
-# Referencias UI del Panel Derecho (Constructor de Bloques y Subrutinas)
-var input_titulo_bloque: LineEdit
-var input_op_bloque: LineEdit
-var input_nombre_param: LineEdit
-var selector_tipo_param: OptionButton
-var contenedor_params_temporales: VBoxContainer
-var selector_retorno_bloque: OptionButton
-var contenedor_bloques_custom: VBoxContainer
+# Referencias UI del Panel Derecho (Subrutinas del Lienzo y Compilación)
+var seccion_parametros_subrutina: VBoxContainer
+var lbl_aviso_subrutina: Label
+var input_nombre_param_sub: LineEdit
+var selector_tipo_param_sub: OptionButton
+var selector_subtipo_param_sub: OptionButton
+var selector_retorno_sub: OptionButton
+var selector_subtipo_retorno_sub: OptionButton
+var input_titulo_subrutina: LineEdit
+var input_codigo_subrutina: LineEdit
+var contenedor_subrutinas_guardadas: VBoxContainer
 var label_estado_compilacion: Label
-
-var parametros_temporales_bloque : Dictionary = {}
 
 func _ready() -> void:
 	controlador = GestorEditor.new()
@@ -42,7 +43,7 @@ func _ready() -> void:
 	menu_bloques.instruccion_seleccionada.connect(_on_instruccion_seleccionada_en_menu)
 	
 	_construir_panel_variables_y_archivos_ui()
-	_construir_panel_creador_bloques_ui()
+	_construir_panel_subrutinas_y_compilacion_ui()
 	_on_grafo_actualizado()
 	
 	contenedor_bloques.custom_minimum_size = Vector2(4000, 4000)
@@ -50,7 +51,7 @@ func _ready() -> void:
 
 func _on_grafo_actualizado() -> void:
 	_actualizar_lista_variables_ui()
-	_actualizar_lista_bloques_custom_ui()
+	_actualizar_panel_subrutinas_ui()
 
 func _poblar_selector_tipos(selector: OptionButton, incluir_any: bool = false) -> void:
 	selector.clear()
@@ -61,7 +62,18 @@ func _poblar_selector_tipos(selector: OptionButton, incluir_any: bool = false) -
 		selector.add_item(etiquetas[tipo_id])
 		selector.set_item_metadata(selector.item_count - 1, tipo_id)
 
-# --- PANEL IZQUIERDO: GESTOR DE VARIABLES + GUARDAR/CARGAR PROGRAMAS ---
+func _poblar_selector_retorno(selector: OptionButton) -> void:
+	selector.clear()
+	selector.add_item("Sin Retorno (Void)")
+	selector.set_item_metadata(0, -1)
+	var etiquetas : Dictionary = GabyEnums.obtener_diccionario_etiquetas()
+	for tipo_id in etiquetas.keys():
+		if tipo_id == GabyEnums.TipoDato.ANY:
+			continue
+		selector.add_item("Devuelve: " + etiquetas[tipo_id])
+		selector.set_item_metadata(selector.item_count - 1, tipo_id)
+
+# --- PANEL IZQUIERDO: GESTOR DE VARIABLES LOCALES + ARCHIVOS DE PROGRAMA ---
 func _construir_panel_variables_y_archivos_ui() -> void:
 	var panel_izq = get_node_or_null("Organizador/PanelContainer")
 	if not panel_izq: return
@@ -76,7 +88,7 @@ func _construir_panel_variables_y_archivos_ui() -> void:
 	margen.add_child(vbox)
 	
 	var titulo := Label.new()
-	titulo.text = "MEMORIA (VARIABLES)"
+	titulo.text = "MEMORIA (VARIABLES LOCALES)"
 	titulo.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	vbox.add_child(titulo)
 	vbox.add_child(HSeparator.new())
@@ -104,7 +116,7 @@ func _construir_panel_variables_y_archivos_ui() -> void:
 	vbox.add_child(input_valor_var)
 	
 	var btn_crear_var := Button.new()
-	btn_crear_var.text = "[+ Declarar Variable]"
+	btn_crear_var.text = "[+ Declarar Variable Local]"
 	btn_crear_var.pressed.connect(_on_crear_variable_pressed)
 	vbox.add_child(btn_crear_var)
 	
@@ -121,12 +133,17 @@ func _construir_panel_variables_y_archivos_ui() -> void:
 	vbox.add_child(HSeparator.new())
 	
 	var lbl_arch := Label.new()
-	lbl_arch.text = "ARCHIVOS DE PROGRAMA (.JSON)"
+	lbl_arch.text = "GESTIÓN DE PROGRAMAS (.JSON)"
 	lbl_arch.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	vbox.add_child(lbl_arch)
 	
+	var btn_nuevo_prog := Button.new()
+	btn_nuevo_prog.text = "[ 🆕 Limpiar Lienzo / Nuevo ]"
+	btn_nuevo_prog.pressed.connect(func(): controlador.limpiar_lienzo_nuevo_programa())
+	vbox.add_child(btn_nuevo_prog)
+	
 	input_nombre_programa = LineEdit.new()
-	input_nombre_programa.placeholder_text = "Nombre (ej. caso_venta)"
+	input_nombre_programa.placeholder_text = "Nombre archivo (ej. caso_venta)"
 	vbox.add_child(input_nombre_programa)
 	
 	var btn_guardar_prog := Button.new()
@@ -139,7 +156,7 @@ func _construir_panel_variables_y_archivos_ui() -> void:
 	
 	var btn_cargar_prog := Button.new()
 	btn_cargar_prog.text = "[ 📂 Cargar Programa JSON... ]"
-	btn_cargar_prog.pressed.connect(func(): dialogo_cargar_json.popup_centered(Vector2i(600, 400)))
+	btn_cargar_prog.pressed.connect(func(): dialogo_cargar_json.popup_centered(Vector2i(650, 420)))
 	vbox.add_child(btn_cargar_prog)
 	
 	dialogo_cargar_json = FileDialog.new()
@@ -204,8 +221,8 @@ func _actualizar_lista_variables_ui() -> void:
 		
 		contenedor_lista_vars.add_child(fila)
 
-# --- PANEL DERECHO: CREADOR DE BLOQUES Y SUBRUTINAS ---
-func _construir_panel_creador_bloques_ui() -> void:
+# --- PANEL DERECHO: DISEÑADOR DE SUBRUTINAS DEL LIENZO Y COMPILACIÓN ---
+func _construir_panel_subrutinas_y_compilacion_ui() -> void:
 	var panel_der = get_node_or_null("Organizador/PanelContainer2")
 	if not panel_der: return
 	
@@ -219,71 +236,128 @@ func _construir_panel_creador_bloques_ui() -> void:
 	margen.add_child(vbox)
 	
 	var titulo := Label.new()
-	titulo.text = "CREAR BLOQUE / SUBRUTINA"
+	titulo.text = "SUBRUTINAS (FUNCIONES)"
 	titulo.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	vbox.add_child(titulo)
 	vbox.add_child(HSeparator.new())
 	
-	input_titulo_bloque = LineEdit.new()
-	input_titulo_bloque.placeholder_text = "Título (ej. Reponer Stock)"
-	vbox.add_child(input_titulo_bloque)
+	lbl_aviso_subrutina = Label.new()
+	lbl_aviso_subrutina.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	lbl_aviso_subrutina.add_theme_font_size_override("font_size", 11)
+	vbox.add_child(lbl_aviso_subrutina)
 	
-	input_op_bloque = LineEdit.new()
-	input_op_bloque.placeholder_text = "ID Host (ej. RESTOCK_ITEM)"
-	vbox.add_child(input_op_bloque)
+	seccion_parametros_subrutina = VBoxContainer.new()
+	seccion_parametros_subrutina.add_theme_constant_override("separation", 5)
+	vbox.add_child(seccion_parametros_subrutina)
 	
-	var fila_param := HBoxContainer.new()
-	input_nombre_param = LineEdit.new()
-	input_nombre_param.placeholder_text = "param"
-	input_nombre_param.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	fila_param.add_child(input_nombre_param)
+	var lbl_p := Label.new()
+	lbl_p.text = "1. Parámetros de Entrada:"
+	lbl_p.add_theme_font_size_override("font_size", 12)
+	seccion_parametros_subrutina.add_child(lbl_p)
 	
-	selector_tipo_param = OptionButton.new()
-	selector_tipo_param.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	_poblar_selector_tipos(selector_tipo_param, true)
-	fila_param.add_child(selector_tipo_param)
+	input_nombre_param_sub = LineEdit.new()
+	input_nombre_param_sub.placeholder_text = "Nombre param (ej. prod_entrada)"
+	seccion_parametros_subrutina.add_child(input_nombre_param_sub)
 	
-	var btn_add_param := Button.new()
-	btn_add_param.text = "+"
-	btn_add_param.pressed.connect(_on_agregar_param_temporal_pressed)
-	fila_param.add_child(btn_add_param)
-	vbox.add_child(fila_param)
+	selector_tipo_param_sub = OptionButton.new()
+	_poblar_selector_tipos(selector_tipo_param_sub)
+	seccion_parametros_subrutina.add_child(selector_tipo_param_sub)
 	
-	contenedor_params_temporales = VBoxContainer.new()
-	vbox.add_child(contenedor_params_temporales)
+	selector_subtipo_param_sub = OptionButton.new()
+	_poblar_selector_tipos(selector_subtipo_param_sub, true)
+	selector_subtipo_param_sub.hide()
+	seccion_parametros_subrutina.add_child(selector_subtipo_param_sub)
 	
-	selector_retorno_bloque = OptionButton.new()
-	selector_retorno_bloque.add_item("Sin Retorno (Void)")
-	selector_retorno_bloque.set_item_metadata(0, -1)
-	var etiquetas : Dictionary = GabyEnums.obtener_diccionario_etiquetas()
-	for tipo_id in etiquetas.keys():
-		selector_retorno_bloque.add_item("Devuelve: " + etiquetas[tipo_id])
-		selector_retorno_bloque.set_item_metadata(selector_retorno_bloque.item_count - 1, tipo_id)
-	vbox.add_child(selector_retorno_bloque)
+	selector_tipo_param_sub.item_selected.connect(func(idx: int):
+		var t_id : int = selector_tipo_param_sub.get_item_metadata(idx)
+		selector_subtipo_param_sub.visible = (t_id == GabyEnums.TipoDato.ARRAY)
+	)
 	
-	var btn_guardar_bloque := Button.new()
-	btn_guardar_bloque.text = "[ 💾 Guardar Acción Host ]"
-	btn_guardar_bloque.pressed.connect(_on_guardar_bloque_personalizado_pressed)
-	vbox.add_child(btn_guardar_bloque)
+	var btn_add_param_sub := Button.new()
+	btn_add_param_sub.text = "[+ Añadir Parámetro de Entrada]"
+	btn_add_param_sub.pressed.connect(func():
+		var t_id : int = selector_tipo_param_sub.get_item_metadata(selector_tipo_param_sub.selected)
+		var sub_id : int = GabyEnums.TipoDato.ANY
+		if t_id == GabyEnums.TipoDato.ARRAY:
+			sub_id = selector_subtipo_param_sub.get_item_metadata(selector_subtipo_param_sub.selected)
+		if controlador.agregar_parametro_entrada_subrutina(input_nombre_param_sub.text, t_id, sub_id):
+			input_nombre_param_sub.text = ""
+	)
+	seccion_parametros_subrutina.add_child(btn_add_param_sub)
+	
+	seccion_parametros_subrutina.add_child(HSeparator.new())
+	
+	var lbl_ret := Label.new()
+	lbl_ret.text = "2. Tipo de Retorno (Salida):"
+	lbl_ret.add_theme_font_size_override("font_size", 12)
+	seccion_parametros_subrutina.add_child(lbl_ret)
+	
+	selector_retorno_sub = OptionButton.new()
+	_poblar_selector_retorno(selector_retorno_sub)
+	seccion_parametros_subrutina.add_child(selector_retorno_sub)
+	
+	selector_subtipo_retorno_sub = OptionButton.new()
+	_poblar_selector_tipos(selector_subtipo_retorno_sub, true)
+	selector_subtipo_retorno_sub.hide()
+	seccion_parametros_subrutina.add_child(selector_subtipo_retorno_sub)
+	
+	selector_retorno_sub.item_selected.connect(func(idx: int):
+		var t_ret : int = selector_retorno_sub.get_item_metadata(idx)
+		selector_subtipo_retorno_sub.visible = (t_ret == GabyEnums.TipoDato.ARRAY)
+		var sub_ret : int = GabyEnums.TipoDato.ANY
+		if t_ret == GabyEnums.TipoDato.ARRAY:
+			sub_ret = selector_subtipo_retorno_sub.get_item_metadata(selector_subtipo_retorno_sub.selected)
+		controlador.configurar_retorno_subrutina(t_ret, sub_ret)
+	)
+	
+	selector_subtipo_retorno_sub.item_selected.connect(func(_idx: int):
+		var t_ret : int = selector_retorno_sub.get_item_metadata(selector_retorno_sub.selected)
+		var sub_ret : int = selector_subtipo_retorno_sub.get_item_metadata(selector_subtipo_retorno_sub.selected)
+		controlador.configurar_retorno_subrutina(t_ret, sub_ret)
+	)
+	
+	seccion_parametros_subrutina.add_child(HSeparator.new())
+	
+	var lbl_g := Label.new()
+	lbl_g.text = "3. Empaquetar Lienzo como Bloque:"
+	lbl_g.add_theme_font_size_override("font_size", 12)
+	seccion_parametros_subrutina.add_child(lbl_g)
+	
+	input_titulo_subrutina = LineEdit.new()
+	input_titulo_subrutina.placeholder_text = "Nombre Visual (ej. Calcular Promo)"
+	seccion_parametros_subrutina.add_child(input_titulo_subrutina)
+	
+	input_codigo_subrutina = LineEdit.new()
+	input_codigo_subrutina.placeholder_text = "Código (ej. CALC_PROMO)"
+	seccion_parametros_subrutina.add_child(input_codigo_subrutina)
 	
 	var btn_guardar_sub := Button.new()
-	btn_guardar_sub.text = "[ 🧩 Guardar Flujo como Subrutina ]"
+	btn_guardar_sub.text = "[ 🧩 Guardar Lienzo como Subrutina ]"
 	btn_guardar_sub.pressed.connect(func():
-		if controlador.guardar_programa_actual_como_subrutina(input_titulo_bloque.text, input_op_bloque.text):
-			input_titulo_bloque.text = ""
-			input_op_bloque.text = ""
+		if controlador.guardar_programa_actual_como_subrutina(input_titulo_subrutina.text, input_codigo_subrutina.text):
+			input_titulo_subrutina.text = ""
+			input_codigo_subrutina.text = ""
 	)
-	vbox.add_child(btn_guardar_sub)
+	seccion_parametros_subrutina.add_child(btn_guardar_sub)
 	
 	vbox.add_child(HSeparator.new())
+	
+	var lbl_lista_sub := Label.new()
+	lbl_lista_sub.text = "Subrutinas Disponibles:"
+	vbox.add_child(lbl_lista_sub)
 	
 	var scroll_custom := ScrollContainer.new()
 	scroll_custom.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	vbox.add_child(scroll_custom)
 	
-	contenedor_bloques_custom = VBoxContainer.new()
-	contenedor_bloques_custom.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	scroll_custom.add_child(contenedor_bloques_custom)
+	contenedor_subrutinas_guardadas = VBoxContainer.new()
+	contenedor_subrutinas_guardadas.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	scroll_custom.add_child(contenedor_subrutinas_guardadas)
+	
+	var btn_recargar_cat := Button.new()
+	btn_recargar_cat.text = "[ 🔄 Sincronizar catalogo_host.json ]"
+	btn_recargar_cat.pressed.connect(func(): controlador.recargar_catalogo_completo())
+	vbox.add_child(btn_recargar_cat)
 	
 	vbox.add_child(HSeparator.new())
 	
@@ -299,71 +373,61 @@ func _construir_panel_creador_bloques_ui() -> void:
 	label_estado_compilacion.add_theme_font_size_override("font_size", 11)
 	vbox.add_child(label_estado_compilacion)
 
-func _on_agregar_param_temporal_pressed() -> void:
-	var nom_p : String = input_nombre_param.text.strip_edges().to_lower().replace(" ", "_")
-	if nom_p == "": return
-	var tipo_p : int = selector_tipo_param.get_item_metadata(selector_tipo_param.selected)
-	parametros_temporales_bloque[StringName(nom_p)] = tipo_p
-	input_nombre_param.text = ""
-	_actualizar_lista_params_temporales_ui()
-
-func _actualizar_lista_params_temporales_ui() -> void:
-	for hijo in contenedor_params_temporales.get_children():
-		hijo.queue_free()
-	for k in parametros_temporales_bloque.keys():
-		var fila := HBoxContainer.new()
-		var lbl := Label.new()
-		lbl.text = "• %s (%s)" % [String(k), GabyEnums.obtener_nombre_codigo(parametros_temporales_bloque[k])]
-		lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		fila.add_child(lbl)
+func _actualizar_panel_subrutinas_ui() -> void:
+	if not seccion_parametros_subrutina or not lbl_aviso_subrutina:
+		return
 		
-		var btn_quitar := Button.new()
-		btn_quitar.text = "x"
-		btn_quitar.pressed.connect(func():
-			parametros_temporales_bloque.erase(k)
-			_actualizar_lista_params_temporales_ui()
-		)
-		fila.add_child(btn_quitar)
-		contenedor_params_temporales.add_child(fila)
-
-func _on_guardar_bloque_personalizado_pressed() -> void:
-	var salidas : Dictionary = {}
-	var tipo_ret : int = selector_retorno_bloque.get_item_metadata(selector_retorno_bloque.selected)
-	if tipo_ret != -1:
-		salidas[&"resultado"] = tipo_ret
+	_poblar_selector_tipos(selector_tipo_var)
+	_poblar_selector_tipos(selector_subtipo_array, true)
+	_poblar_selector_tipos(selector_tipo_param_sub)
+	_poblar_selector_tipos(selector_subtipo_param_sub, true)
+	_poblar_selector_retorno(selector_retorno_sub)
+	_poblar_selector_tipos(selector_subtipo_retorno_sub, true)
 		
-	if controlador.crear_bloque_accion_personalizado(
-		input_titulo_bloque.text,
-		input_op_bloque.text,
-		parametros_temporales_bloque.duplicate(),
-		salidas
-	):
-		input_titulo_bloque.text = ""
-		input_op_bloque.text = ""
-		selector_retorno_bloque.select(0)
-		parametros_temporales_bloque.clear()
-		_actualizar_lista_params_temporales_ui()
-
-func _actualizar_lista_bloques_custom_ui() -> void:
-	if not contenedor_bloques_custom: return
-	for hijo in contenedor_bloques_custom.get_children():
+	var es_sub := controlador.es_flujo_actual_subrutina()
+	seccion_parametros_subrutina.visible = es_sub
+	if es_sub:
+		lbl_aviso_subrutina.text = "✅ Modo Subrutina Activo: Configura entradas, tipo de retorno (usa el bloque 'Retornar Valor') y guarda el flujo."
+		var ev := controlador.programa_de_usuario.obtener_nodo_evento_raiz()
+		if ev:
+			for i in range(selector_retorno_sub.item_count):
+				if int(selector_retorno_sub.get_item_metadata(i)) == ev.tipo_retorno_subrutina:
+					selector_retorno_sub.select(i)
+					break
+			selector_subtipo_retorno_sub.visible = (ev.tipo_retorno_subrutina == GabyEnums.TipoDato.ARRAY)
+			if ev.tipo_retorno_subrutina == GabyEnums.TipoDato.ARRAY:
+				for i in range(selector_subtipo_retorno_sub.item_count):
+					if int(selector_subtipo_retorno_sub.get_item_metadata(i)) == ev.subtipo_retorno_subrutina:
+						selector_subtipo_retorno_sub.select(i)
+						break
+	else:
+		lbl_aviso_subrutina.text = "ℹ️ Para crear una Subrutina reutilizable, inicia el lienzo con el evento 'Inicio de Subrutina (Acción Compuesta)'."
+		
+	for hijo in contenedor_subrutinas_guardadas.get_children():
 		hijo.queue_free()
 		
-	for op_id in controlador.bloques_personalizados_ids:
+	for op_id in controlador.subrutinas_registradas_ids:
 		var def : DefinicionBloque = controlador.registro_bloques.get(op_id)
 		if not def: continue
 		var fila := HBoxContainer.new()
 		var lbl := Label.new()
-		lbl.text = "%s [%s]" % [def.nombre_visual, String(op_id)]
+		lbl.text = def.nombre_visual
 		lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		lbl.clip_text = true
 		fila.add_child(lbl)
 		
+		var btn_edit := Button.new()
+		btn_edit.text = "📂"
+		btn_edit.tooltip_text = "Cargar subrutina en el lienzo para editarla"
+		btn_edit.pressed.connect(func(): controlador.cargar_subrutina_en_lienzo(op_id))
+		fila.add_child(btn_edit)
+		
 		var btn_del := Button.new()
 		btn_del.text = "X"
-		btn_del.pressed.connect(func(): controlador.eliminar_bloque_personalizado(op_id))
+		btn_del.tooltip_text = "Eliminar subrutina"
+		btn_del.pressed.connect(func(): controlador.eliminar_subrutina_guardada(op_id))
 		fila.add_child(btn_del)
-		contenedor_bloques_custom.add_child(fila)
+		contenedor_subrutinas_guardadas.add_child(fila)
 
 func _on_compilacion_exitosa(ruta: String) -> void:
 	if label_estado_compilacion:
@@ -399,10 +463,8 @@ func _on_instruccion_seleccionada_en_menu(operacion_host: StringName) -> void:
 		contenedor_bloques.move_child(boton_agregar, -1)
 
 func _buscar_evento_raiz() -> int:
-	for id in controlador.programa_de_usuario.nodos_grafos.keys():
-		if controlador.programa_de_usuario.nodos_grafos[id].categoria == GabyEnums.CategoriaNodo.EVENTO:
-			return id
-	return -1
+	var ev := controlador.programa_de_usuario.obtener_nodo_evento_raiz()
+	return ev.id if ev else -1
 
 func _input(event: InputEvent) -> void:
 	if event.is_action_pressed("ui_accept"): 

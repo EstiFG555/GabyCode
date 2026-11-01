@@ -65,7 +65,8 @@
 				"producto": "PRODUCTO",
 				"porcentaje": "INT"
 			},
-			"salidas": {}
+			"salidas": {
+			}
 		},
 		{
 			"operacion": "SHOW_ALERT",
@@ -74,7 +75,8 @@
 			"entradas": {
 				"mensaje": "STRING"
 			},
-			"salidas": {}
+			"salidas": {
+			}
 		},
 		{
 			"operacion": "CALCULATE_SALE_TOTAL",
@@ -95,7 +97,8 @@
 				"lista_productos": "ARRAY",
 				"total": "FLOAT"
 			},
-			"salidas": {}
+			"salidas": {
+			}
 		},
 		{
 			"operacion": "SHOW_TOTAL",
@@ -104,7 +107,8 @@
 			"entradas": {
 				"total": "FLOAT"
 			},
-			"salidas": {}
+			"salidas": {
+			}
 		}
 	]
 }

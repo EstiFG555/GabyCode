@@ -22,14 +22,12 @@ var estado_inyeccion_actual: Dictionary = {}
 
 # Registro en memoria de las Definiciones
 var registro_bloques : Dictionary[StringName, DefinicionBloque] = {}
-var bloques_personalizados_ids : Array[StringName] = []
+var subrutinas_registradas_ids : Array[StringName] = []
 
 func _ready() -> void:
 	programa_de_usuario = ASG_Programa.new()
 	_asegurar_directorios()
-	_cargar_definiciones_nativas_lenguaje()
-	_cargar_catalogo_host_json()
-	_cargar_subrutinas_disco()
+	recargar_catalogo_completo()
 
 func _asegurar_directorios() -> void:
 	for dir_path in [CARPETA_PROGRAMAS, CARPETA_SUBRUTINAS]:
@@ -37,14 +35,25 @@ func _asegurar_directorios() -> void:
 		if not DirAccess.dir_exists_absolute(abs_path):
 			DirAccess.make_dir_recursive_absolute(abs_path)
 
-# Bloques intrínsecos del lenguaje (Controles, Asignación de Memoria y Operadores Matemáticos)
+func recargar_catalogo_completo() -> void:
+	registro_bloques.clear()
+	subrutinas_registradas_ids.clear()
+	_cargar_definiciones_nativas_lenguaje()
+	_cargar_catalogo_host_json()
+	_cargar_subrutinas_disco()
+	renderizar_grafo_completo()
+
 func _cargar_definiciones_nativas_lenguaje() -> void:
 	_registrar_def("Asignar Variable (SET)", GabyEnums.CategoriaNodo.ACCIÓN, &"SET_VAR", {
 		&"variable_destino": GabyEnums.TipoDato.ANY,
 		&"valor": GabyEnums.TipoDato.ANY
 	}, {})
 	
-	# CONTROLES: IF_ELSE, WHILE y FOREACH Genérico
+	# Bloque nativo para devolver el resultado de una Subrutina
+	_registrar_def("Retornar Valor (RETURN)", GabyEnums.CategoriaNodo.ACCIÓN, &"RETURN_VAL", {
+		&"valor_retorno": GabyEnums.TipoDato.ANY
+	}, {})
+	
 	_registrar_def("Condición (Si / Si No)", GabyEnums.CategoriaNodo.CONTROL, &"IF_ELSE", {
 		&"condicion": GabyEnums.TipoDato.BOOLEAN
 	}, {})
@@ -53,14 +62,12 @@ func _cargar_definiciones_nativas_lenguaje() -> void:
 		&"condicion": GabyEnums.TipoDato.BOOLEAN
 	}, {})
 	
-	# FOREACH Genérico: Recibe cualquier ARRAY uniforme y expone "elemento_actual" con inferencia de subtipo
 	_registrar_def("Control: Por cada elemento (ForEach)", GabyEnums.CategoriaNodo.CONTROL, &"FOREACH", {
 		&"coleccion": GabyEnums.TipoDato.ARRAY
 	}, {
 		&"elemento_actual": GabyEnums.TipoDato.ANY
 	})
 	
-	# EXPRESIONES LÓGICAS Y MATEMÁTICAS
 	_registrar_def("Menor Que (<)", GabyEnums.CategoriaNodo.EXPRESION, &"LESS_THAN", {
 		&"valor_a": GabyEnums.TipoDato.INT,
 		&"valor_b": GabyEnums.TipoDato.INT
@@ -96,7 +103,6 @@ func _cargar_definiciones_nativas_lenguaje() -> void:
 		&"valor_b": GabyEnums.TipoDato.INT
 	}, {&"resultado": GabyEnums.TipoDato.INT})
 
-# Carga los Tipos de Objetos, Eventos y Acciones Host desde catalogo_host.json
 func _cargar_catalogo_host_json() -> void:
 	if not FileAccess.file_exists(RUTA_CATALOGO_JSON):
 		return
@@ -106,12 +112,10 @@ func _cargar_catalogo_host_json() -> void:
 	file.close()
 	if typeof(data) != TYPE_DICTIONARY: return
 	
-	# 1. Registrar Tipos de Objetos del Dominio
 	if data.has("tipos_objetos"):
 		for nombre_obj in data["tipos_objetos"]:
 			GabyEnums.registrar_tipo_objeto(str(nombre_obj))
 			
-	# 2. Registrar Eventos del Event Bus
 	if data.has("eventos"):
 		for ev in data["eventos"]:
 			var op := StringName(str(ev.get("operacion", "")))
@@ -127,9 +131,11 @@ func _cargar_catalogo_host_json() -> void:
 						subtipos_dict[StringName(k)] = GabyEnums.obtener_id_tipo(str(info.get("subtipo", "ANY")))
 				else:
 					salidas_dict[StringName(k)] = GabyEnums.obtener_id_tipo(str(info))
+			if op == &"SUBROUTINE_ENTRY":
+				salidas_dict.clear()
+				subtipos_dict.clear()
 			_registrar_def(nom, GabyEnums.CategoriaNodo.EVENTO, op, {}, salidas_dict, subtipos_dict)
 			
-	# 3. Registrar Acciones Host
 	if data.has("acciones"):
 		for acc in data["acciones"]:
 			var op := StringName(str(acc.get("operacion", "")))
@@ -151,8 +157,6 @@ func _cargar_catalogo_host_json() -> void:
 				else:
 					salidas_dict[StringName(k)] = GabyEnums.obtener_id_tipo(str(info))
 			_registrar_def(nom, GabyEnums.CategoriaNodo.ACCIÓN, op, entradas_dict, salidas_dict, subtipos_dict)
-			if acc.get("es_personalizado", false) and not bloques_personalizados_ids.has(op):
-				bloques_personalizados_ids.append(op)
 
 func _registrar_def(nombre: String, cat: GabyEnums.CategoriaNodo, op: StringName, entradas: Dictionary, salidas: Dictionary, subtipos_salidas: Dictionary = {}) -> DefinicionBloque:
 	var def := DefinicionBloque.new()
@@ -172,92 +176,137 @@ func _registrar_def(nombre: String, cat: GabyEnums.CategoriaNodo, op: StringName
 	registro_bloques[op] = def
 	return def
 
-# --- CREACIÓN Y PERSISTENCIA DE BLOQUES PERSONALIZADOS EN CATALOGO_HOST.JSON ---
-func crear_bloque_accion_personalizado(nombre_visual: String, operacion_host_raw: String, entradas: Dictionary, salidas: Dictionary) -> bool:
-	var op_limpia : String = operacion_host_raw.strip_edges().to_upper().replace(" ", "_")
-	if nombre_visual.strip_edges() == "" or op_limpia == "":
-		return false
-	var op_name := StringName(op_limpia)
-	if registro_bloques.has(op_name):
-		push_warning("Ya existe un bloque con la operación: " + op_limpia)
-		return false
-		
-	_registrar_def(nombre_visual.strip_edges(), GabyEnums.CategoriaNodo.ACCIÓN, op_name, entradas, salidas)
-	bloques_personalizados_ids.append(op_name)
-	_guardar_accion_en_catalogo_json(nombre_visual.strip_edges(), op_limpia, entradas, salidas)
-	grafo_actualizado.emit()
-	return true
+# --- GESTIÓN DE PARÁMETROS Y RETORNO EN SUBROUTINE_ENTRY ---
+func es_flujo_actual_subrutina() -> bool:
+	var ev := programa_de_usuario.obtener_nodo_evento_raiz()
+	return ev != null and ev.nombre_evento == &"SUBROUTINE_ENTRY"
 
-func _guardar_accion_en_catalogo_json(nombre_visual: String, op_limpia: String, entradas: Dictionary, salidas: Dictionary) -> void:
-	var data : Dictionary = {"tipos_objetos": [], "eventos": [], "acciones": []}
-	if FileAccess.file_exists(RUTA_CATALOGO_JSON):
-		var f := FileAccess.open(RUTA_CATALOGO_JSON, FileAccess.READ)
-		if f:
-			var parsed = JSON.parse_string(f.get_as_text())
-			if typeof(parsed) == TYPE_DICTIONARY: data = parsed
-			f.close()
-			
-	var ent_json : Dictionary = {}
-	var orden_ent : Array = []
-	for k in entradas.keys():
-		ent_json[String(k)] = GabyEnums.obtener_nombre_codigo(int(entradas[k]))
-		orden_ent.append(String(k))
-		
-	var sal_json : Dictionary = {}
-	for k in salidas.keys():
-		sal_json[String(k)] = {"tipo": GabyEnums.obtener_nombre_codigo(int(salidas[k]))}
-		
-	data["acciones"].append({
-		"operacion": op_limpia,
-		"nombre_visual": nombre_visual,
-		"orden_entradas": orden_ent,
-		"entradas": ent_json,
-		"salidas": sal_json,
-		"es_personalizado": true
-	})
-	
-	var f_out := FileAccess.open(RUTA_CATALOGO_JSON, FileAccess.WRITE)
-	if f_out:
-		f_out.store_string(JSON.stringify(data, "\t"))
-		f_out.close()
-
-func eliminar_bloque_personalizado(op_name: StringName) -> void:
-	if not bloques_personalizados_ids.has(op_name):
+func configurar_retorno_subrutina(tipo_ret: int, subtipo_ret: int = GabyEnums.TipoDato.ANY) -> void:
+	var ev := programa_de_usuario.obtener_nodo_evento_raiz()
+	if not ev or ev.nombre_evento != &"SUBROUTINE_ENTRY":
 		return
-	bloques_personalizados_ids.erase(op_name)
-	registro_bloques.erase(op_name)
+	if ev.tipo_retorno_subrutina == tipo_ret and ev.subtipo_retorno_subrutina == subtipo_ret:
+		return
+	var instantanea_previa = programa_de_usuario.crear_instantanea()
+	historial.create_action("Configurar Retorno de Subrutina")
+	historial.add_do_method(_ejecutar_configurar_retorno_sub.bind(tipo_ret, subtipo_ret))
+	historial.add_undo_method(_ejecutar_restaurar_instantanea.bind(instantanea_previa, id_padre_pendiente, puerto_pendiente))
+	historial.commit_action()
+
+func _ejecutar_configurar_retorno_sub(tipo_ret: int, subtipo_ret: int) -> void:
+	var ev := programa_de_usuario.obtener_nodo_evento_raiz()
+	if not ev: return
+	ev.tipo_retorno_subrutina = tipo_ret
+	ev.subtipo_retorno_subrutina = subtipo_ret
 	
-	if FileAccess.file_exists(RUTA_CATALOGO_JSON):
-		var f := FileAccess.open(RUTA_CATALOGO_JSON, FileAccess.READ)
-		var data = JSON.parse_string(f.get_as_text())
-		f.close()
-		if typeof(data) == TYPE_DICTIONARY and data.has("acciones"):
-			var nuevas_acc : Array = []
-			for acc in data["acciones"]:
-				if str(acc.get("operacion", "")) != String(op_name):
-					nuevas_acc.append(acc)
-			data["acciones"] = nuevas_acc
-			var f_out := FileAccess.open(RUTA_CATALOGO_JSON, FileAccess.WRITE)
-			f_out.store_string(JSON.stringify(data, "\t"))
-			f_out.close()
+	# Limpiar conexiones previas en bloques RETURN_VAL si cambió el tipo de retorno
+	for id_n in programa_de_usuario.nodos_grafos.keys():
+		var n := programa_de_usuario.obtener_nodo(id_n)
+		if n is ASGAcción and n.nombre_acción == &"RETURN_VAL":
+			n.entradas_datos_conectadas.erase(&"valor_retorno")
 			
+	programa_de_usuario.limpiar_expresiones_huerfanas()
 	renderizar_grafo_completo()
 
-# --- GUARDAR Y CARGAR SUBRUTINAS (BLOQUES COMPUESTOS) ---
+func agregar_parametro_entrada_subrutina(nombre_raw: String, tipo: int, subtipo: int = GabyEnums.TipoDato.ANY) -> bool:
+	var ev := programa_de_usuario.obtener_nodo_evento_raiz()
+	if not ev or ev.nombre_evento != &"SUBROUTINE_ENTRY":
+		return false
+	var nom_limpio := nombre_raw.strip_edges().to_lower().replace(" ", "_")
+	if nom_limpio == "" or ev.tipos_salidas_provistas.has(StringName(nom_limpio)):
+		return false
+		
+	var instantanea_previa = programa_de_usuario.crear_instantanea()
+	historial.create_action("Añadir Parámetro de Subrutina")
+	historial.add_do_method(_ejecutar_agregar_param_subrutina.bind(nom_limpio, tipo, subtipo))
+	historial.add_undo_method(_ejecutar_restaurar_instantanea.bind(instantanea_previa, id_padre_pendiente, puerto_pendiente))
+	historial.commit_action()
+	return true
+
+func _ejecutar_agregar_param_subrutina(nom_limpio: String, tipo: int, subtipo: int) -> void:
+	var ev := programa_de_usuario.obtener_nodo_evento_raiz()
+	if not ev: return
+	var clave := StringName(nom_limpio)
+	ev.tipos_salidas_provistas[clave] = tipo
+	if tipo == GabyEnums.TipoDato.ARRAY:
+		ev.subtipos_array_salidas[clave] = subtipo
+	if not ev.orden_parametros_subrutina.has(nom_limpio):
+		ev.orden_parametros_subrutina.append(nom_limpio)
+	renderizar_grafo_completo()
+
+func eliminar_parametro_entrada_subrutina(nom_param: String) -> void:
+	var ev := programa_de_usuario.obtener_nodo_evento_raiz()
+	if not ev or ev.nombre_evento != &"SUBROUTINE_ENTRY":
+		return
+	var instantanea_previa = programa_de_usuario.crear_instantanea()
+	historial.create_action("Quitar Parámetro de Subrutina")
+	historial.add_do_method(_ejecutar_eliminar_param_subrutina.bind(nom_param))
+	historial.add_undo_method(_ejecutar_restaurar_instantanea.bind(instantanea_previa, id_padre_pendiente, puerto_pendiente))
+	historial.commit_action()
+
+func _ejecutar_eliminar_param_subrutina(nom_param: String) -> void:
+	var ev := programa_de_usuario.obtener_nodo_evento_raiz()
+	if not ev: return
+	var clave := StringName(nom_param)
+	ev.tipos_salidas_provistas.erase(clave)
+	ev.subtipos_array_salidas.erase(clave)
+	ev.orden_parametros_subrutina.erase(nom_param)
+	
+	for id_n in programa_de_usuario.nodos_grafos.keys():
+		var n := programa_de_usuario.obtener_nodo(id_n)
+		var borrar : Array = []
+		for p in n.entradas_datos_conectadas.keys():
+			var con = n.entradas_datos_conectadas[p]
+			if typeof(con) == TYPE_DICTIONARY and con.get("fuente") == "REFERENCIA_NODO":
+				if int(con.get("id_origen", -1)) == ev.id and str(con.get("puerto", "")) == nom_param:
+					borrar.append(p)
+		for p in borrar:
+			n.entradas_datos_conectadas.erase(p)
+	renderizar_grafo_completo()
+
 func guardar_programa_actual_como_subrutina(nombre_visual: String, codigo_subrutina: String) -> bool:
-	var op_limpia := "SUB_" + codigo_subrutina.strip_edges().to_upper().replace(" ", "_")
+	var ev := programa_de_usuario.obtener_nodo_evento_raiz()
+	if not ev or ev.nombre_evento != &"SUBROUTINE_ENTRY":
+		push_warning("Para guardar como Subrutina, el evento raíz del lienzo debe ser 'Inicio de Subrutina (SUBROUTINE_ENTRY)'.")
+		return false
+		
+	var op_limpia := codigo_subrutina.strip_edges().to_upper().replace(" ", "_")
+	if not op_limpia.begins_with("SUB_"):
+		op_limpia = "SUB_" + op_limpia
 	if nombre_visual.strip_edges() == "" or op_limpia == "SUB_":
 		return false
 		
-	# Deducir entradas de las variables locales del subprograma
 	var entradas_sub : Dictionary = {}
-	for v in programa_de_usuario.variables_locales:
-		entradas_sub[StringName(v.get("nombre"))] = int(v.get("tipo", GabyEnums.TipoDato.ANY))
-		
+	var entradas_json : Dictionary = {}
+	var orden_entradas : Array = []
+	
+	for nom_p in ev.orden_parametros_subrutina:
+		var clave := StringName(nom_p)
+		if ev.tipos_salidas_provistas.has(clave):
+			var t_id : int = ev.tipos_salidas_provistas[clave]
+			entradas_sub[clave] = t_id
+			entradas_json[nom_p] = GabyEnums.obtener_nombre_codigo(t_id)
+			orden_entradas.append(nom_p)
+			
+	# Exportar la firma de retorno (salida "resultado") si la subrutina devuelve un valor
+	var salidas_sub : Dictionary = {}
+	var subtipos_sal_sub : Dictionary = {}
+	var salidas_json : Dictionary = {}
+	if ev.tipo_retorno_subrutina != -1:
+		salidas_sub[&"resultado"] = ev.tipo_retorno_subrutina
+		var info_ret : Dictionary = {"tipo": GabyEnums.obtener_nombre_codigo(ev.tipo_retorno_subrutina)}
+		if ev.tipo_retorno_subrutina == GabyEnums.TipoDato.ARRAY:
+			subtipos_sal_sub[&"resultado"] = ev.subtipo_retorno_subrutina
+			info_ret["subtipo"] = GabyEnums.obtener_nombre_codigo(ev.subtipo_retorno_subrutina)
+		salidas_json["resultado"] = info_ret
+			
 	var ruta_sub := CARPETA_SUBRUTINAS + op_limpia.to_lower() + ".json"
 	var exportacion : Dictionary = {
 		"nombre_visual": "[Subrutina] " + nombre_visual.strip_edges(),
 		"operacion": op_limpia,
+		"orden_entradas": orden_entradas,
+		"entradas": entradas_json,
+		"salidas": salidas_json,
 		"grafo": JSON.parse_string(programa_de_usuario.generar_json_ir())
 	}
 	var f := FileAccess.open(ruta_sub, FileAccess.WRITE)
@@ -265,11 +314,12 @@ func guardar_programa_actual_como_subrutina(nombre_visual: String, codigo_subrut
 	f.store_string(JSON.stringify(exportacion, "\t"))
 	f.close()
 	
-	var def := _registrar_def("[Subrutina] " + nombre_visual.strip_edges(), GabyEnums.CategoriaNodo.ACCIÓN, StringName(op_limpia), entradas_sub, {})
+	var def := _registrar_def("[Subrutina] " + nombre_visual.strip_edges(), GabyEnums.CategoriaNodo.ACCIÓN, StringName(op_limpia), entradas_sub, salidas_sub, subtipos_sal_sub)
 	def.es_subrutina = true
-	if not bloques_personalizados_ids.has(StringName(op_limpia)):
-		bloques_personalizados_ids.append(StringName(op_limpia))
+	if not subrutinas_registradas_ids.has(StringName(op_limpia)):
+		subrutinas_registradas_ids.append(StringName(op_limpia))
 	grafo_actualizado.emit()
+	compilacion_exitosa.emit(ProjectSettings.globalize_path(ruta_sub))
 	return true
 
 func _cargar_subrutinas_disco() -> void:
@@ -287,17 +337,52 @@ func _cargar_subrutinas_disco() -> void:
 					var op := StringName(str(data["operacion"]))
 					var nom := str(data.get("nombre_visual", op))
 					var entradas_sub : Dictionary = {}
-					var grafo_dict : Dictionary = data.get("grafo", {})
-					for v in grafo_dict.get("variables_locales", []):
-						entradas_sub[StringName(v.get("nombre"))] = int(v.get("tipo", GabyEnums.TipoDato.ANY))
-					var def := _registrar_def(nom, GabyEnums.CategoriaNodo.ACCIÓN, op, entradas_sub, {})
+					if data.has("entradas") and typeof(data["entradas"]) == TYPE_DICTIONARY:
+						var ent_dict : Dictionary = data["entradas"]
+						for k in ent_dict.keys():
+							entradas_sub[StringName(k)] = GabyEnums.obtener_id_tipo(str(ent_dict[k]))
+							
+					var salidas_sub : Dictionary = {}
+					var subtipos_sub : Dictionary = {}
+					if data.has("salidas") and typeof(data["salidas"]) == TYPE_DICTIONARY:
+						var sal_dict : Dictionary = data["salidas"]
+						for k in sal_dict.keys():
+							var info = sal_dict[k]
+							if typeof(info) == TYPE_DICTIONARY:
+								salidas_sub[StringName(k)] = GabyEnums.obtener_id_tipo(str(info.get("tipo", "ANY")))
+								if info.has("subtipo"):
+									subtipos_sub[StringName(k)] = GabyEnums.obtener_id_tipo(str(info.get("subtipo", "ANY")))
+							else:
+								salidas_sub[StringName(k)] = GabyEnums.obtener_id_tipo(str(info))
+								
+					var def := _registrar_def(nom, GabyEnums.CategoriaNodo.ACCIÓN, op, entradas_sub, salidas_sub, subtipos_sub)
 					def.es_subrutina = true
-					if not bloques_personalizados_ids.has(op):
-						bloques_personalizados_ids.append(op)
+					if not subrutinas_registradas_ids.has(op):
+						subrutinas_registradas_ids.append(op)
 		archivo = dir.get_next()
 	dir.list_dir_end()
 
+func cargar_subrutina_en_lienzo(op_name: StringName) -> void:
+	var ruta := CARPETA_SUBRUTINAS + String(op_name).to_lower() + ".json"
+	cargar_programa_desde_ruta(ruta)
+
+func eliminar_subrutina_guardada(op_name: StringName) -> void:
+	if not subrutinas_registradas_ids.has(op_name):
+		return
+	subrutinas_registradas_ids.erase(op_name)
+	registro_bloques.erase(op_name)
+	var ruta := CARPETA_SUBRUTINAS + String(op_name).to_lower() + ".json"
+	if FileAccess.file_exists(ruta):
+		DirAccess.remove_absolute(ProjectSettings.globalize_path(ruta))
+	renderizar_grafo_completo()
+
 # --- GUARDAR Y CARGAR PROGRAMAS COMPLETOS (.JSON) ---
+func limpiar_lienzo_nuevo_programa() -> void:
+	programa_de_usuario = ASG_Programa.new()
+	historial.clear_history()
+	id_padre_pendiente = -1
+	renderizar_grafo_completo()
+
 func guardar_programa_en_disco(nombre_archivo: String) -> String:
 	var nom_limpio := nombre_archivo.strip_edges().replace(" ", "_")
 	if nom_limpio == "": nom_limpio = "programa_guardado"
@@ -435,7 +520,6 @@ func _ejecutar_eliminacion_bloque(id_a_borrar: int, id_predecesor: int = -1, pue
 		
 	renderizar_grafo_completo()
 
-# Infiere dinámicamente el tipo de salida de un nodo (clave para el polimorfismo de FOREACH<T>)
 func _inferir_tipo_salida_nodo(nodo_cand: NodoBaseASG, nombre_salida: StringName) -> int:
 	var tipo_base : int = nodo_cand.tipos_salidas_provistas.get(nombre_salida, GabyEnums.TipoDato.ANY)
 	if nodo_cand is ASGControl and nodo_cand.nombre_control == &"FOREACH" and nombre_salida == &"elemento_actual":
@@ -450,6 +534,20 @@ func _inferir_tipo_salida_nodo(nodo_cand: NodoBaseASG, nombre_salida: StringName
 				elif con_col.get("fuente") == "VARIABLE":
 					return programa_de_usuario.obtener_subtipo_variable(str(con_col.get("nombre", "")))
 	return tipo_base
+
+# Calcula el diccionario de tipos de entrada efectivos de un nodo (para SET_VAR y RETURN_VAL)
+func _obtener_entradas_efectivas_nodo(nodo: NodoBaseASG) -> Dictionary:
+	var copia : Dictionary = nodo.tipos_entradas_esperadas.duplicate()
+	if nodo is ASGAcción:
+		if nodo.nombre_acción == &"SET_VAR" and nodo.entradas_datos_conectadas.has(&"variable_destino"):
+			var con_var = nodo.entradas_datos_conectadas[&"variable_destino"]
+			if typeof(con_var) == TYPE_DICTIONARY and con_var.get("fuente") == "VARIABLE":
+				copia[&"valor"] = programa_de_usuario.obtener_tipo_variable(str(con_var.get("nombre", "")))
+		elif nodo.nombre_acción == &"RETURN_VAL":
+			var ev := programa_de_usuario.obtener_nodo_evento_raiz()
+			if ev and ev.nombre_evento == &"SUBROUTINE_ENTRY" and ev.tipo_retorno_subrutina != -1:
+				copia[&"valor_retorno"] = ev.tipo_retorno_subrutina
+	return copia
 
 func buscar_opciones_compatibles(id_destino: int, parametro: StringName, tipo_forzado: int = -1) -> Array:
 	var opciones : Array = []
@@ -466,13 +564,8 @@ func buscar_opciones_compatibles(id_destino: int, parametro: StringName, tipo_fo
 	var tipo_req : int = tipo_forzado
 	if tipo_req == -1:
 		if not nodo_destino: return opciones
-		tipo_req = nodo_destino.tipos_entradas_esperadas.get(parametro, GabyEnums.TipoDato.ANY)
-		
-		if nodo_destino is ASGAcción and nodo_destino.nombre_acción == &"SET_VAR" and parametro == &"valor":
-			if nodo_destino.entradas_datos_conectadas.has(&"variable_destino"):
-				var con_var = nodo_destino.entradas_datos_conectadas[&"variable_destino"]
-				if typeof(con_var) == TYPE_DICTIONARY and con_var.get("fuente") == "VARIABLE":
-					tipo_req = programa_de_usuario.obtener_tipo_variable(str(con_var.get("nombre", "")))
+		var entradas_efectivas := _obtener_entradas_efectivas_nodo(nodo_destino)
+		tipo_req = entradas_efectivas.get(parametro, GabyEnums.TipoDato.ANY)
 	
 	# 1. Variables locales compatibles
 	for variable in programa_de_usuario.variables_locales:
@@ -483,11 +576,12 @@ func buscar_opciones_compatibles(id_destino: int, parametro: StringName, tipo_fo
 				"datos_conexion": {"fuente": "VARIABLE", "nombre": variable.get("nombre")}
 			})
 			
-	# 2. Salidas de nodos anteriores (con inferencia de subtipo para FOREACH<T>)
-	for id_candidato in programa_de_usuario.nodos_grafos.keys():
-		if id_candidato == id_destino: continue
+	# 2. Salidas EXCLUSIVAMENTE de nodos ancestros
+	var ids_ancestros : Array[int] = programa_de_usuario.obtener_ancestros_de_nodo(id_destino)
+	for id_candidato in ids_ancestros:
 		var nodo_cand = programa_de_usuario.obtener_nodo(id_candidato)
-		if nodo_cand.categoria == GabyEnums.CategoriaNodo.EXPRESION: continue
+		if not nodo_cand or nodo_cand.categoria == GabyEnums.CategoriaNodo.EXPRESION:
+			continue
 		
 		for nombre_salida in nodo_cand.tipos_salidas_provistas.keys():
 			var tipo_salida : int = _inferir_tipo_salida_nodo(nodo_cand, nombre_salida)
@@ -498,7 +592,7 @@ func buscar_opciones_compatibles(id_destino: int, parametro: StringName, tipo_fo
 					"datos_conexion": {"fuente": "REFERENCIA_NODO", "id_origen": id_candidato, "puerto": String(nombre_salida)}
 				})
 				
-	# 3. Mostrar expresión propia ya conectada (para preselección en Modo Inmediato)
+	# 3. Mostrar expresión propia ya conectada
 	if nodo_destino and nodo_destino.entradas_datos_conectadas.has(parametro):
 		var con = nodo_destino.entradas_datos_conectadas[parametro]
 		if typeof(con) == TYPE_DICTIONARY and con.get("fuente") == "REFERENCIA_NODO":
@@ -550,16 +644,17 @@ func _ejecutar_cambio_nodo(id_nodo: int, operacion_host: StringName) -> void:
 
 func obtener_definiciones_validas() -> Array:
 	var validas: Array = []
-	var tiene_evento_inicial: bool = false
-	for id_n in programa_de_usuario.nodos_grafos.keys():
-		if programa_de_usuario.nodos_grafos[id_n].categoria == GabyEnums.CategoriaNodo.EVENTO:
-			tiene_evento_inicial = true
-			break
+	var ev_raiz := programa_de_usuario.obtener_nodo_evento_raiz()
+	var tiene_evento_inicial: bool = (ev_raiz != null)
 	
 	for key in registro_bloques.keys():
 		var def: DefinicionBloque = registro_bloques[key]
 		if def.categoria == GabyEnums.CategoriaNodo.EXPRESION:
 			continue
+		# El bloque RETURN_VAL solo es válido dentro de una Subrutina que tenga un tipo de retorno configurado
+		if key == &"RETURN_VAL":
+			if not ev_raiz or ev_raiz.nombre_evento != &"SUBROUTINE_ENTRY" or ev_raiz.tipo_retorno_subrutina == -1:
+				continue
 		if not tiene_evento_inicial and def.categoria == GabyEnums.CategoriaNodo.EVENTO:
 			validas.append(def)
 		elif tiene_evento_inicial and def.categoria != GabyEnums.CategoriaNodo.EVENTO:
@@ -569,8 +664,12 @@ func obtener_definiciones_validas() -> Array:
 
 func obtener_definiciones_para_mutacion(categoria_actual : GabyEnums.CategoriaNodo) -> Array:
 	var validas : Array = []
+	var ev_raiz := programa_de_usuario.obtener_nodo_evento_raiz()
 	for key in registro_bloques.keys():
 		var def : DefinicionBloque = registro_bloques[key]
+		if key == &"RETURN_VAL":
+			if not ev_raiz or ev_raiz.nombre_evento != &"SUBROUTINE_ENTRY" or ev_raiz.tipo_retorno_subrutina == -1:
+				continue
 		if def.categoria == categoria_actual:
 			validas.append(def)
 	return validas
@@ -651,14 +750,9 @@ func renderizar_grafo_completo() -> void:
 		if hijo is BloqueBaseUI or hijo.has_meta("es_conector_flujo"):
 			hijo.queue_free()
 			
-	var id_raiz : int = -1
-	for id in programa_de_usuario.nodos_grafos.keys():
-		if programa_de_usuario.nodos_grafos[id].categoria == GabyEnums.CategoriaNodo.EVENTO:
-			id_raiz = id
-			break
-			
-	if id_raiz != -1:
-		_renderizar_secuencia(id_raiz, contenedor_flujo_ui)
+	var ev_raiz := programa_de_usuario.obtener_nodo_evento_raiz()
+	if ev_raiz:
+		_renderizar_secuencia(ev_raiz.id, contenedor_flujo_ui)
 		
 	for hijo in contenedor_flujo_ui.get_children():
 		if hijo is Button:
@@ -692,7 +786,19 @@ func _renderizar_secuencia(id_inicio: int, contenedor_destino: Container) -> voi
 		contenedor_destino.add_child(bloque_ui)
 			
 		var func_busqueda = Callable(self, "buscar_opciones_compatibles")
-		bloque_ui.inicializar(id_actual, definicion.nombre_visual, definicion.tipos_entradas_esperadas, func_busqueda, nodo.entradas_datos_conectadas)
+		var titulo_mostrar := "[#%d] %s" % [id_actual, definicion.nombre_visual]
+		var entradas_efectivas := _obtener_entradas_efectivas_nodo(nodo)
+		bloque_ui.inicializar(id_actual, titulo_mostrar, entradas_efectivas, func_busqueda, nodo.entradas_datos_conectadas)
+		
+		if bloque_ui is BloqueEventoUI and nodo is ASGEvento:
+			bloque_ui.mostrar_salidas_contexto(
+				nodo.tipos_salidas_provistas,
+				nodo.subtipos_array_salidas,
+				operacion_host == &"SUBROUTINE_ENTRY",
+				nodo.tipo_retorno_subrutina,
+				nodo.subtipo_retorno_subrutina
+			)
+			bloque_ui.solicitar_eliminar_parametro_subrutina.connect(eliminar_parametro_entrada_subrutina)
 		
 		bloque_ui.solicitar_eliminacion.connect(_on_bloque_solicita_eliminacion)
 		
@@ -764,7 +870,7 @@ func _ejecutar_inyeccion_expresion(id_destino: int, parametro_destino: StringNam
 	
 	if id_expresion > programa_de_usuario.ultimo_id:
 		programa_de_usuario.ultimo_id = id_expresion
-		
+	
 	var nodo_destino = programa_de_usuario.obtener_nodo(id_destino)
 	if nodo_destino:
 		nodo_destino.entradas_datos_conectadas[parametro_destino] = {

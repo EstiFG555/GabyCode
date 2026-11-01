@@ -2,8 +2,8 @@ gabycodecompiler\generador\CodigoOperacion.class
 gabycodecompiler\generador\GeneradorBytecode.class
 gabycodecompiler\lector\LectorJson.class
 gabycodecompiler\modelo\SalidadEjecucion.class
-gabycodecompiler\semantico\AnalizadorSemantico.class
 gabycodecompilador\main.class
+gabycodecompiler\generador\GeneradorBytecode$DatosSubrutina.class
 gabycodecompiler\generador\Instruccion.class
 gabycodecompiler\modelo\Grafo.class
 gabycodecompiler\modelo\EntradaDato.class

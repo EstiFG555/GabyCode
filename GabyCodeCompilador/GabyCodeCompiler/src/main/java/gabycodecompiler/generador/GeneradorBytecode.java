@@ -26,7 +26,6 @@ import java.util.Set;
 
 public class GeneradorBytecode {
 
-    // Mapa con el orden oficial de parámetros leído de catalogo_host.json o por defecto
     private static final Map<String, List<String>> ORDEN_PARAMETROS_HOST = new HashMap<>();
 
     static {
@@ -37,6 +36,11 @@ public class GeneradorBytecode {
         ORDEN_PARAMETROS_HOST.put("CALCULATE_SALE_TOTAL", Arrays.asList("lista_productos"));
         ORDEN_PARAMETROS_HOST.put("REGISTER_SALE", Arrays.asList("lista_productos", "total"));
         ORDEN_PARAMETROS_HOST.put("SHOW_TOTAL", Arrays.asList("total"));
+    }
+
+    private static class DatosSubrutina {
+        Grafo grafo;
+        List<String> ordenEntradas = new ArrayList<>();
     }
 
     public static List<Instruccion> generar(List<Nodo> nodos) {
@@ -53,27 +57,29 @@ public class GeneradorBytecode {
             return instrucciones;
         }
 
-        // Registro de llamadas a subrutinas pendientes de enlazar (Backpatching de CALL)
         List<Instruccion> llamadasSubrutinasPendientes = new ArrayList<>();
         List<String> nombresSubrutinasLlamadas = new ArrayList<>();
 
-        compilarGrafoEnLista(grafo, instrucciones, false, llamadasSubrutinasPendientes, nombresSubrutinasLlamadas);
+        compilarGrafoEnLista(grafo, new ArrayList<>(), instrucciones, false, llamadasSubrutinasPendientes, nombresSubrutinasLlamadas);
 
         // Instrucción de cierre del programa principal
         instrucciones.add(new Instruccion(CodigoOperacion.HALT));
 
-        // Enlazar y compilar las Subrutinas (Acciones Compuestas) invocadas al final del bytecode
+        // Enlazar y compilar las Subrutinas invocadas al final del archivo bytecode
         Map<String, Integer> direccionesSubrutinas = new LinkedHashMap<>();
         for (int i = 0; i < nombresSubrutinasLlamadas.size(); i++) {
             String opSub = nombresSubrutinasLlamadas.get(i);
             Instruccion instCall = llamadasSubrutinasPendientes.get(i);
 
             if (!direccionesSubrutinas.containsKey(opSub)) {
-                Grafo grafoSub = cargarGrafoSubrutina(opSub);
-                if (grafoSub != null) {
+                DatosSubrutina datosSub = cargarDatosSubrutina(opSub);
+                if (datosSub != null && datosSub.grafo != null) {
                     int dirInicio = instrucciones.size();
                     direccionesSubrutinas.put(opSub, dirInicio);
-                    compilarGrafoEnLista(grafoSub, instrucciones, true, llamadasSubrutinasPendientes, nombresSubrutinasLlamadas);
+                    compilarGrafoEnLista(datosSub.grafo, datosSub.ordenEntradas, instrucciones, true,
+                            llamadasSubrutinasPendientes, nombresSubrutinasLlamadas);
+                    // Retorno por defecto (0) si el flujo de la subrutina llega al final sin ejecutar RETURN_VAL
+                    instrucciones.add(new Instruccion(CodigoOperacion.PUSH, 0));
                     instrucciones.add(new Instruccion(CodigoOperacion.RET));
                 } else {
                     direccionesSubrutinas.put(opSub, instrucciones.size() - 1);
@@ -87,6 +93,7 @@ public class GeneradorBytecode {
 
     private static void compilarGrafoEnLista(
             Grafo grafo,
+            List<String> parametrosEntradaSubrutina,
             List<Instruccion> instrucciones,
             boolean esSubrutina,
             List<Instruccion> llamadasSubrutinasPendientes,
@@ -106,23 +113,22 @@ public class GeneradorBytecode {
             }
         }
 
-        // Inicialización de variables locales del scope actual
+        // 1. Si es Subrutina, desapilar primero sus parámetros formales de entrada en orden inverso (LIFO)
+        if (esSubrutina && parametrosEntradaSubrutina != null) {
+            for (int i = parametrosEntradaSubrutina.size() - 1; i >= 0; i--) {
+                String nombreParam = parametrosEntradaSubrutina.get(i);
+                instrucciones.add(new Instruccion(CodigoOperacion.STORE, nombreParam));
+            }
+        }
+
+        // 2. Inicializar las variables_locales propias del ámbito actual (Principal o Subrutina)
         if (grafo.getVariablesLocales() != null) {
-            if (esSubrutina) {
-                // En una subrutina, los valores iniciales provienen de los argumentos apilados antes de CALL (orden inverso LIFO)
-                for (int i = grafo.getVariablesLocales().size() - 1; i >= 0; i--) {
-                    Map<String, Object> varLocal = grafo.getVariablesLocales().get(i);
-                    String nombre = String.valueOf(varLocal.get("nombre"));
-                    instrucciones.add(new Instruccion(CodigoOperacion.STORE, nombre));
-                }
-            } else {
-                for (Map<String, Object> varLocal : grafo.getVariablesLocales()) {
-                    String nombre = String.valueOf(varLocal.get("nombre"));
-                    Object valorInicial = varLocal.get("valor_inicial");
-                    if (valorInicial == null) valorInicial = 0;
-                    instrucciones.add(new Instruccion(CodigoOperacion.PUSH, formatearLiteral(valorInicial)));
-                    instrucciones.add(new Instruccion(CodigoOperacion.STORE, nombre));
-                }
+            for (Map<String, Object> varLocal : grafo.getVariablesLocales()) {
+                String nombre = String.valueOf(varLocal.get("nombre"));
+                Object valorInicial = varLocal.get("valor_inicial");
+                if (valorInicial == null) valorInicial = 0;
+                instrucciones.add(new Instruccion(CodigoOperacion.PUSH, formatearLiteral(valorInicial)));
+                instrucciones.add(new Instruccion(CodigoOperacion.STORE, nombre));
             }
         }
 
@@ -251,13 +257,11 @@ public class GeneradorBytecode {
             Instruccion jmpSalida = new Instruccion(CodigoOperacion.JMP_IF_FALSE, 0);
             instrucciones.add(jmpSalida);
 
-            // Obtener elemento actual y guardarlo en el puerto de salida del ForEach
             instrucciones.add(new Instruccion(CodigoOperacion.LOAD, varIndice));
             evaluarEntradaDato(coleccion, mapaNodos, instrucciones);
             instrucciones.add(new Instruccion(CodigoOperacion.CALL_HOST, "GET_ITEM 2"));
             instrucciones.add(new Instruccion(CodigoOperacion.STORE, varSalidaElemento));
 
-            // Si además se especificó una variable iteradora explícita, actualizarla también
             EntradaDato varIter = obtenerEntrada(nodo, "variable_iteradora");
             if (varIter != null && varIter.getNombre() != null && !varIter.getNombre().isEmpty()) {
                 instrucciones.add(new Instruccion(CodigoOperacion.LOAD, varSalidaElemento));
@@ -288,6 +292,7 @@ public class GeneradorBytecode {
             List<Instruccion> llamadasSubrutinasPendientes,
             List<String> nombresSubrutinasLlamadas) {
 
+        // 1. Asignación de variable local (SET_VAR)
         if ("SET_VAR".equals(operacion)) {
             EntradaDato entradaValor = obtenerEntrada(nodo, "valor");
             EntradaDato entradaDestino = obtenerEntrada(nodo, "variable_destino");
@@ -298,16 +303,39 @@ public class GeneradorBytecode {
             return;
         }
 
-        // Si es una Subrutina (Acción Compuesta creada por el usuario)
+        // 2. Retorno explícito de valor desde una Subrutina (RETURN_VAL)
+        if ("RETURN_VAL".equals(operacion)) {
+            EntradaDato entradaRetorno = obtenerEntrada(nodo, "valor_retorno");
+            evaluarEntradaDato(entradaRetorno, mapaNodos, instrucciones);
+            instrucciones.add(new Instruccion(CodigoOperacion.RET));
+            return;
+        }
+
+        // 3. Llamada a Subrutina (Acción Compuesta con prefijo SUB_)
         if (operacion.startsWith("SUB_")) {
-            apilarArgumentosAccion(nodo, operacion, mapaNodos, instrucciones);
+            DatosSubrutina infoSub = cargarDatosSubrutina(operacion);
+            if (infoSub != null && !infoSub.ordenEntradas.isEmpty()) {
+                for (String paramName : infoSub.ordenEntradas) {
+                    evaluarEntradaDato(obtenerEntrada(nodo, paramName), mapaNodos, instrucciones);
+                }
+            } else {
+                apilarArgumentosAccion(nodo, operacion, mapaNodos, instrucciones);
+            }
             Instruccion instCall = new Instruccion(CodigoOperacion.CALL, 0);
             instrucciones.add(instCall);
             llamadasSubrutinasPendientes.add(instCall);
             nombresSubrutinasLlamadas.add(operacion);
+
+            // Al retornar la subrutina, si alguien consume su "resultado", lo guardamos en __salida_nodo_<id>
+            if (nodosReferenciados.contains(nodo.getId())) {
+                instrucciones.add(new Instruccion(CodigoOperacion.STORE, "__salida_nodo_" + nodo.getId()));
+            } else {
+                instrucciones.add(new Instruccion(CodigoOperacion.POP));
+            }
             return;
         }
 
+        // 4. Llamada estándar al Host (CALL_HOST)
         int aridad = apilarArgumentosAccion(nodo, operacion, mapaNodos, instrucciones);
         instrucciones.add(new Instruccion(CodigoOperacion.CALL_HOST, operacion + " " + aridad));
 
@@ -397,7 +425,6 @@ public class GeneradorBytecode {
                         if ("EXPRESION".equalsIgnoreCase(nodoOrigen.getTipo())) {
                             compilarNodoExpresion(nodoOrigen, mapaNodos, instrucciones);
                         } else if ("EVENTO".equalsIgnoreCase(nodoOrigen.getTipo())) {
-                            // Cargar la variable inyectada por el Event Bus según el nombre del puerto de salida del Evento
                             String puerto = entrada.getPuerto();
                             if (puerto == null || puerto.isBlank() || "producto_leido".equals(puerto)) {
                                 instrucciones.add(new Instruccion(CodigoOperacion.LOAD, "ProductoActual"));
@@ -445,7 +472,7 @@ public class GeneradorBytecode {
     }
 
     @SuppressWarnings("unchecked")
-    private static Grafo cargarGrafoSubrutina(String opSub) {
+    private static DatosSubrutina cargarDatosSubrutina(String opSub) {
         String nombreArchivo = opSub.toLowerCase() + ".json";
         String[] rutas = {
             "../../compilador-gráfico/subrutinas/" + nombreArchivo,
@@ -459,8 +486,14 @@ public class GeneradorBytecode {
                 try (FileReader reader = new FileReader(f)) {
                     Map<String, Object> wrapper = gson.fromJson(reader, Map.class);
                     if (wrapper != null && wrapper.containsKey("grafo")) {
+                        DatosSubrutina ds = new DatosSubrutina();
+                        if (wrapper.get("orden_entradas") instanceof List<?> listaOrden) {
+                            for (Object o : listaOrden) ds.ordenEntradas.add(String.valueOf(o));
+                        }
                         String grafoJson = gson.toJson(wrapper.get("grafo"));
-                        return gson.fromJson(grafoJson, Grafo.class);
+                        ds.grafo = gson.fromJson(grafoJson, Grafo.class);
+                        ORDEN_PARAMETROS_HOST.put(opSub.toUpperCase(), ds.ordenEntradas);
+                        return ds;
                     }
                 } catch (Exception ignored) {
                 }

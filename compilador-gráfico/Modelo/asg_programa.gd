@@ -14,7 +14,72 @@ func registrar_nodo(nodo : NodoBaseASG) -> int:
 func obtener_nodo(id_buscado : int) -> NodoBaseASG:
 	return nodos_grafos.get(id_buscado, null)
 
-# --- GESTIÓN DE VARIABLES LOCALES (CON SUBTIPO PARA ARREGLOS UNIFORMES) ---
+func obtener_nodo_evento_raiz() -> ASGEvento:
+	for id_n in nodos_grafos.keys():
+		var n = nodos_grafos[id_n]
+		if n is ASGEvento:
+			return n
+	return null
+
+# --- CÁLCULO TOPOLÓGICO DE ANCESTROS ---
+func obtener_ancestros_de_nodo(id_destino: int) -> Array[int]:
+	var evento := obtener_nodo_evento_raiz()
+	if not evento:
+		return []
+	var visitados_en_ruta : Array[int] = []
+	var resultado : Array[int] = []
+	_buscar_ruta_hacia_destino(evento.id, id_destino, visitados_en_ruta, resultado)
+	return resultado
+
+func _buscar_ruta_hacia_destino(id_actual: int, id_destino: int, ancestros_actuales: Array[int], resultado: Array[int]) -> bool:
+	var copia_ancestros : Array[int] = ancestros_actuales.duplicate()
+	
+	while id_actual > 0:
+		if id_actual == id_destino:
+			resultado.assign(copia_ancestros)
+			return true
+			
+		var nodo : NodoBaseASG = obtener_nodo(id_actual)
+		if not nodo:
+			break
+			
+		for con in nodo.entradas_datos_conectadas.values():
+			if typeof(con) == TYPE_DICTIONARY and con.get("fuente") == "REFERENCIA_NODO":
+				var id_orig : int = int(con.get("id_origen", -1))
+				if _expresion_contiene_destino(id_orig, id_destino):
+					resultado.assign(copia_ancestros)
+					return true
+					
+		copia_ancestros.append(id_actual)
+		
+		if nodo is ASGControl:
+			if nodo.id_rama_verdadera > 0:
+				if _buscar_ruta_hacia_destino(nodo.id_rama_verdadera, id_destino, copia_ancestros, resultado):
+					return true
+			if nodo.id_rama_falsa > 0:
+				if _buscar_ruta_hacia_destino(nodo.id_rama_falsa, id_destino, copia_ancestros, resultado):
+					return true
+					
+		if "id_siguiente_ejecución" in nodo:
+			id_actual = nodo.get(&"id_siguiente_ejecución")
+		else:
+			id_actual = -1
+			
+	return false
+
+func _expresion_contiene_destino(id_expr: int, id_destino: int) -> bool:
+	if id_expr == id_destino:
+		return true
+	var nodo := obtener_nodo(id_expr)
+	if not nodo or nodo.categoria != GabyEnums.CategoriaNodo.EXPRESION:
+		return false
+	for con in nodo.entradas_datos_conectadas.values():
+		if typeof(con) == TYPE_DICTIONARY and con.get("fuente") == "REFERENCIA_NODO":
+			if _expresion_contiene_destino(int(con.get("id_origen", -1)), id_destino):
+				return true
+	return false
+
+# --- GESTIÓN DE VARIABLES LOCALES ---
 func existe_variable(nombre: String) -> bool:
 	for v in variables_locales:
 		if v.get("nombre") == nombre:
@@ -73,9 +138,15 @@ func crear_instantanea() -> Dictionary:
 		var clon : NodoBaseASG = n.duplicate(true)
 		clon.id = n.id
 		clon.entradas_datos_conectadas = n.entradas_datos_conectadas.duplicate(true)
+		clon.tipos_entradas_esperadas = n.tipos_entradas_esperadas.duplicate()
+		clon.tipos_salidas_provistas = n.tipos_salidas_provistas.duplicate()
 		clon.subtipos_array_salidas = n.subtipos_array_salidas.duplicate()
 		if "id_siguiente_ejecución" in n:
 			clon.set(&"id_siguiente_ejecución", n.get(&"id_siguiente_ejecución"))
+		if n is ASGEvento and clon is ASGEvento:
+			clon.orden_parametros_subrutina = n.orden_parametros_subrutina.duplicate()
+			clon.tipo_retorno_subrutina = n.tipo_retorno_subrutina
+			clon.subtipo_retorno_subrutina = n.subtipo_retorno_subrutina
 		if n is ASGControl and clon is ASGControl:
 			clon.id_rama_verdadera = n.id_rama_verdadera
 			clon.id_rama_falsa = n.id_rama_falsa
@@ -97,9 +168,15 @@ func restaurar_instantanea(instantanea: Dictionary) -> void:
 		var clon : NodoBaseASG = n.duplicate(true)
 		clon.id = n.id
 		clon.entradas_datos_conectadas = n.entradas_datos_conectadas.duplicate(true)
+		clon.tipos_entradas_esperadas = n.tipos_entradas_esperadas.duplicate()
+		clon.tipos_salidas_provistas = n.tipos_salidas_provistas.duplicate()
 		clon.subtipos_array_salidas = n.subtipos_array_salidas.duplicate()
 		if "id_siguiente_ejecución" in n:
 			clon.set(&"id_siguiente_ejecución", n.get(&"id_siguiente_ejecución"))
+		if n is ASGEvento and clon is ASGEvento:
+			clon.orden_parametros_subrutina = n.orden_parametros_subrutina.duplicate()
+			clon.tipo_retorno_subrutina = n.tipo_retorno_subrutina
+			clon.subtipo_retorno_subrutina = n.subtipo_retorno_subrutina
 		if n is ASGControl and clon is ASGControl:
 			clon.id_rama_verdadera = n.id_rama_verdadera
 			clon.id_rama_falsa = n.id_rama_falsa
@@ -228,11 +305,14 @@ func generar_json_ir() -> String:
 	
 	return JSON.stringify(exportacion, "\t")
 
-# --- DESERIALIZACIÓN: CARGAR PROGRAMA DESDE JSON ---
+# --- DESERIALIZACIÓN: CARGAR PROGRAMA O SUBRUTINA DESDE JSON ---
 func cargar_desde_json_string(json_str: String, registro_bloques: Dictionary, fabrica: BloqueFactory) -> bool:
 	var parsed = JSON.parse_string(json_str)
 	if typeof(parsed) != TYPE_DICTIONARY:
 		return false
+		
+	if parsed.has("grafo") and typeof(parsed["grafo"]) == TYPE_DICTIONARY:
+		parsed = parsed["grafo"]
 		
 	variables_locales.clear()
 	nodos_grafos.clear()
@@ -266,6 +346,15 @@ func cargar_desde_json_string(json_str: String, registro_bloques: Dictionary, fa
 		if tipo_str == "EVENTO":
 			var ev := ASGEvento.new()
 			ev.nombre_evento = op_name
+			if n_dict.has("orden_parametros") and typeof(n_dict["orden_parametros"]) == TYPE_ARRAY:
+				for p_nom in n_dict["orden_parametros"]:
+					ev.orden_parametros_subrutina.append(str(p_nom))
+			if n_dict.has("retorno_subrutina") and typeof(n_dict["retorno_subrutina"]) == TYPE_DICTIONARY:
+				var ret_d : Dictionary = n_dict["retorno_subrutina"]
+				if ret_d.has("tipo"):
+					ev.tipo_retorno_subrutina = GabyEnums.obtener_id_tipo(str(ret_d["tipo"]))
+					if ret_d.has("subtipo"):
+						ev.subtipo_retorno_subrutina = GabyEnums.obtener_id_tipo(str(ret_d["subtipo"]))
 			nuevo_nodo = ev
 		elif tipo_str == "CONTROL":
 			var ctrl := ASGControl.new()
@@ -286,7 +375,17 @@ func cargar_desde_json_string(json_str: String, registro_bloques: Dictionary, fa
 			nuevo_nodo.tipos_salidas_provistas = def.tipos_salidas_provistas.duplicate()
 			nuevo_nodo.subtipos_array_salidas = def.subtipos_array_salidas.duplicate()
 			
-		# Restaurar salidas de ejecución
+		if n_dict.has("salidas_evento") and typeof(n_dict["salidas_evento"]) == TYPE_DICTIONARY:
+			nuevo_nodo.tipos_salidas_provistas.clear()
+			nuevo_nodo.subtipos_array_salidas.clear()
+			var sal_ev : Dictionary = n_dict["salidas_evento"]
+			for k in sal_ev.keys():
+				var info = sal_ev[k]
+				if typeof(info) == TYPE_DICTIONARY:
+					nuevo_nodo.tipos_salidas_provistas[StringName(k)] = GabyEnums.obtener_id_tipo(str(info.get("tipo", "ANY")))
+					if info.has("subtipo"):
+						nuevo_nodo.subtipos_array_salidas[StringName(k)] = GabyEnums.obtener_id_tipo(str(info.get("subtipo", "ANY")))
+						
 		var salidas : Array = n_dict.get("salidas_ejecucion", [])
 		if nuevo_nodo is ASGControl:
 			if salidas.size() > 0: nuevo_nodo.id_rama_verdadera = int(salidas[0])
@@ -295,7 +394,6 @@ func cargar_desde_json_string(json_str: String, registro_bloques: Dictionary, fa
 		elif "id_siguiente_ejecución" in nuevo_nodo and salidas.size() > 0:
 			nuevo_nodo.set(&"id_siguiente_ejecución", int(salidas[0]))
 			
-		# Restaurar entradas de datos
 		var entradas_raw : Dictionary = n_dict.get("datos_entrada", n_dict.get("entradas_datos", {}))
 		for k in entradas_raw.keys():
 			var ed = entradas_raw[k]
