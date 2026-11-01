@@ -1,10 +1,39 @@
-PUSH 0
-JMP_IF_FALSE 7
+PUSH 3
+PUSH 3
+CALL 9
+STORE __salida_nodo_3
 LOAD ProductoActual
-PUSH 0
+LOAD __salida_nodo_3
 CALL_HOST APPLY_DISCOUNT 2
 POP
-JMP 9
-CALL_HOST SHOW_ALERT 0
-POP
 HALT
+STORE potencia
+STORE numero
+PUSH 0
+STORE Contador
+PUSH 1
+STORE Resultado
+LOAD Contador
+LOAD potencia
+LT
+JMP_IF_FALSE 35
+LOAD Contador
+PUSH 1
+EQ
+JMP_IF_FALSE 26
+LOAD numero
+STORE Resultado
+JMP 30
+LOAD Resultado
+LOAD numero
+MUL
+STORE Resultado
+LOAD Contador
+PUSH 1
+ADD
+STORE Contador
+JMP 15
+LOAD Resultado
+RET
+PUSH 0
+RET

@@ -108,7 +108,7 @@ func _procesar_ingreso_literal(nuevo_texto: String, texto_viejo: String, option_
 	if nuevo_texto == texto_viejo: return
 	
 	if nuevo_texto.strip_edges() != "":
-		var valor_casteado = _castear_literal(nuevo_texto, tipo_req)
+		var valor_casteado : Variant = _castear_literal(nuevo_texto, tipo_req)
 		parametro_modificado.emit(id_logico, parametro, {"fuente": "LITERAL", "valor": valor_casteado})
 	elif texto_viejo != "":
 		parametro_modificado.emit(id_logico, parametro, null)
