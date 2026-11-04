@@ -17,7 +17,31 @@
 ### Guía Rapida
 
   - #### Como Instalar
-      Tutorial de como instalar.
+
+##### Pre-Requisitos
+
+Un pre-requisito para poder ejecutar correctamente toda la plataforma es el tener java instalado en su computadora, de preferencia recomendamos java 26 para el cual proporcionamos el siguiente link para que pueda descargarlo e instalarlo y así no tener problema ejecutando las aplicaciones desarrolladas en ese lenguaje.
+
+Descargar Java 26: [Link a la página](https://www.oracle.com/java/technologies/javase/jdk26-archive-downloads.html)
+
+##### Instalación de la plataforma
+
+En caso no posea el ".rar" conteniendo todas las partes de la plataforma puede obtenerlas a travez del siguiente link: [Obtener rar](todo)
+
+Una vez obtenido el rar correspondiente a su plataforma, lo siguiente que debe hacer es simplemente descomprimirlo en una carpeta vacia. Esto le generará una carpeta llamada "GabyCode" la cual contendrá 3 carpetas correspondientes a las distintas partes/modulos de la plataforma:
+
+  * compilador-gráfico
+  * GabyCodeCompilador
+  * JVMGabi
+
+Cada una de estas carpetas contienen tanto el código fuente como el ejecutable final de cada parte que es lo que realmente le interesa.
+
+##### Obtención de los ejecutables finales
+
+Con toda la plataforma ya descomprimida del rar y en su pc lo siguiente que queda es localizar y facilitar el acceso a los ejecutables.
+
+Primero iniciaremos con el ejecutable del IDE de programación, para acceder al ejecutable simplemente abra la carpeta de "compilador-gráfico" dentro encontrará varios archivos, pero el de importancia es el que tiene de nombre "IDE" el tipo del archivo dependerá de su sistema operativo.
+      
   - #### Orden de Ejecución
       
   - #### Como Ejecutar Pruebas
