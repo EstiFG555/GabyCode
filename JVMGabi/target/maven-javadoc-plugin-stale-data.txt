@@ -1,0 +1,44 @@
+-J-Duser.language=
+-J-Duser.country=
+@options
+@packages
+--no-fonts
+-encoding
+'UTF-8'
+-protected
+--release
+26
+-sourcepath
+'C:/Users/estif/Documents/GitHub/GabyCode/JVMGabi/src/main/java;C:/Users/estif/Documents/GitHub/GabyCode/JVMGabi/target/generated-sources/annotations'
+-author
+-bottom
+'Copyright &#169; 2026. All rights reserved.'
+-charset
+'UTF-8'
+-d
+'C:/Users/estif/Documents/GitHub/GabyCode/JVMGabi/target/reports/apidocs'
+-docencoding
+'UTF-8'
+-doctitle
+'JVMGabi 2.0 Linux Ready API'
+-use
+-version
+-windowtitle
+'JVMGabi 2.0 Linux Ready API'
+com.mycompany.jvmgabi
+C:\Users\estif\Documents\GitHub\GabyCode\JVMGabi\src\main\java = 1792263519778
+C:\Users\estif\Documents\GitHub\GabyCode\JVMGabi\target\generated-sources\annotations = 1793597798333
+C:\Users\estif\Documents\GitHub\GabyCode\JVMGabi\target\reports\apidocs\allclasses-index.html = 1793597805364
+C:\Users\estif\Documents\GitHub\GabyCode\JVMGabi\target\reports\apidocs\allpackages-index.html = 1793597805368
+C:\Users\estif\Documents\GitHub\GabyCode\JVMGabi\target\reports\apidocs\element-list = 1793597805138
+C:\Users\estif\Documents\GitHub\GabyCode\JVMGabi\target\reports\apidocs\help-doc.html = 1793597805421
+C:\Users\estif\Documents\GitHub\GabyCode\JVMGabi\target\reports\apidocs\index-all.html = 1793597805405
+C:\Users\estif\Documents\GitHub\GabyCode\JVMGabi\target\reports\apidocs\index.html = 1793597805414
+C:\Users\estif\Documents\GitHub\GabyCode\JVMGabi\target\reports\apidocs\member-search-index.js = 1793597805381
+C:\Users\estif\Documents\GitHub\GabyCode\JVMGabi\target\reports\apidocs\module-search-index.js = 1793597805372
+C:\Users\estif\Documents\GitHub\GabyCode\JVMGabi\target\reports\apidocs\overview-tree.html = 1793597805338
+C:\Users\estif\Documents\GitHub\GabyCode\JVMGabi\target\reports\apidocs\package-search-index.js = 1793597805374
+C:\Users\estif\Documents\GitHub\GabyCode\JVMGabi\target\reports\apidocs\search.html = 1793597805409
+C:\Users\estif\Documents\GitHub\GabyCode\JVMGabi\target\reports\apidocs\serialized-form.html = 1793597805203
+C:\Users\estif\Documents\GitHub\GabyCode\JVMGabi\target\reports\apidocs\tag-search-index.js = 1793597805384
+C:\Users\estif\Documents\GitHub\GabyCode\JVMGabi\target\reports\apidocs\type-search-index.js = 1793597805378

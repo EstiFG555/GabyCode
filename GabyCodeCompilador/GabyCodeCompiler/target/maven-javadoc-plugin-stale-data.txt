@@ -1,0 +1,52 @@
+-J-Duser.language=
+-J-Duser.country=
+@options
+@packages
+--no-fonts
+-classpath
+'C:/Users/estif/.m2/repository/com/google/code/gson/gson/2.10.1/gson-2.10.1.jar'
+-encoding
+'UTF-8'
+-protected
+--release
+26
+-sourcepath
+'C:/Users/estif/Documents/GitHub/GabyCode/GabyCodeCompilador/GabyCodeCompiler/src/main/java;C:/Users/estif/Documents/GitHub/GabyCode/GabyCodeCompilador/GabyCodeCompiler/target/generated-sources/annotations'
+-author
+-bottom
+'Copyright &#169; 2026. All rights reserved.'
+-charset
+'UTF-8'
+-d
+'C:/Users/estif/Documents/GitHub/GabyCode/GabyCodeCompilador/GabyCodeCompiler/target/reports/apidocs'
+-docencoding
+'UTF-8'
+-doctitle
+'GabyCodeCompiler 2.0-Linux-Ready API'
+-use
+-version
+-windowtitle
+'GabyCodeCompiler 2.0-Linux-Ready API'
+gabycodecompilador
+gabycodecompiler.escritor
+gabycodecompiler.generador
+gabycodecompiler.lector
+gabycodecompiler.modelo
+gabycodecompiler.semantico
+C:\Users\estif\.m2\repository\com\google\code\gson\gson\2.10.1\gson-2.10.1.jar = 1792433037040
+C:\Users\estif\Documents\GitHub\GabyCode\GabyCodeCompilador\GabyCodeCompiler\src\main\java = 1792363519416
+C:\Users\estif\Documents\GitHub\GabyCode\GabyCodeCompilador\GabyCodeCompiler\target\generated-sources\annotations = 1793592119238
+C:\Users\estif\Documents\GitHub\GabyCode\GabyCodeCompilador\GabyCodeCompiler\target\reports\apidocs\allclasses-index.html = 1793592128318
+C:\Users\estif\Documents\GitHub\GabyCode\GabyCodeCompilador\GabyCodeCompiler\target\reports\apidocs\allpackages-index.html = 1793592128324
+C:\Users\estif\Documents\GitHub\GabyCode\GabyCodeCompilador\GabyCodeCompiler\target\reports\apidocs\element-list = 1793592127998
+C:\Users\estif\Documents\GitHub\GabyCode\GabyCodeCompilador\GabyCodeCompiler\target\reports\apidocs\help-doc.html = 1793592128391
+C:\Users\estif\Documents\GitHub\GabyCode\GabyCodeCompilador\GabyCodeCompiler\target\reports\apidocs\index-all.html = 1793592128374
+C:\Users\estif\Documents\GitHub\GabyCode\GabyCodeCompilador\GabyCodeCompiler\target\reports\apidocs\index.html = 1793592128290
+C:\Users\estif\Documents\GitHub\GabyCode\GabyCodeCompilador\GabyCodeCompiler\target\reports\apidocs\member-search-index.js = 1793592128335
+C:\Users\estif\Documents\GitHub\GabyCode\GabyCodeCompilador\GabyCodeCompiler\target\reports\apidocs\module-search-index.js = 1793592128326
+C:\Users\estif\Documents\GitHub\GabyCode\GabyCodeCompilador\GabyCodeCompiler\target\reports\apidocs\overview-summary.html = 1793592128384
+C:\Users\estif\Documents\GitHub\GabyCode\GabyCodeCompilador\GabyCodeCompiler\target\reports\apidocs\overview-tree.html = 1793592128282
+C:\Users\estif\Documents\GitHub\GabyCode\GabyCodeCompilador\GabyCodeCompiler\target\reports\apidocs\package-search-index.js = 1793592128329
+C:\Users\estif\Documents\GitHub\GabyCode\GabyCodeCompilador\GabyCodeCompiler\target\reports\apidocs\search.html = 1793592128379
+C:\Users\estif\Documents\GitHub\GabyCode\GabyCodeCompilador\GabyCodeCompiler\target\reports\apidocs\tag-search-index.js = 1793592128338
+C:\Users\estif\Documents\GitHub\GabyCode\GabyCodeCompilador\GabyCodeCompiler\target\reports\apidocs\type-search-index.js = 1793592128331

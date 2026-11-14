@@ -1,9 +1,9 @@
 PUSH 3
 PUSH 3
 CALL 9
-STORE __salida_nodo_3
+STORE __salida_nodo_2
 LOAD ProductoActual
-LOAD __salida_nodo_3
+LOAD __salida_nodo_2
 CALL_HOST APPLY_DISCOUNT 2
 POP
 HALT
