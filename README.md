@@ -40,7 +40,11 @@ Cada una de estas carpetas contienen tanto el código fuente como el ejecutable 
 
 Con toda la plataforma ya descomprimida del rar y en su pc lo siguiente que queda es localizar y facilitar el acceso a los ejecutables.
 
-Primero iniciaremos con el ejecutable del IDE de programación, para acceder al ejecutable simplemente abra la carpeta de "compilador-gráfico" dentro encontrará varios archivos, pero el de importancia es el que tiene de nombre "IDE" el tipo del archivo dependerá de su sistema operativo.
+Primero iniciaremos con el ejecutable del IDE de programación, para acceder al ejecutable simplemente abra la carpeta de "compilador-gráfico" dentro encontrará varios archivos, pero el de importancia es el que tiene de nombre "IDE_GabyCode" el tipo del archivo dependerá de su sistema operativo (x86_64 si usa linux). Opcionalmente también se provee un acceso directo apenas se descomprime la carpeta.
+
+Segundo tendre
+
+
       
   - #### Orden de Ejecución
       
