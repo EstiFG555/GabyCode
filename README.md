@@ -38,15 +38,15 @@ Cada una de estas carpetas contienen tanto el código fuente como el ejecutable 
 
 ##### Obtención de los ejecutables finales
 
-Con toda la plataforma ya descomprimida del rar y en su pc lo siguiente que queda es localizar y facilitar el acceso a los ejecutables.
+  Con toda la plataforma ya descomprimida del rar y en su pc lo siguiente que queda es localizar y facilitar el acceso a los ejecutables.
 
-Primero iniciaremos con el ejecutable del IDE de programación, para acceder al ejecutable simplemente abra la carpeta de "compilador-gráfico" dentro encontrará varios archivos, pero el de importancia es el que tiene de nombre "IDE_GabyCode" el tipo del archivo dependerá de su sistema operativo (x86_64 si usa linux). Opcionalmente también se provee un acceso directo apenas se descomprime la carpeta.
+  Primero iniciaremos con el ejecutable del IDE de programación, para acceder al ejecutable simplemente abra la carpeta de "compilador-gráfico" dentro encontrará varios archivos, pero el de importancia es el que tiene de nombre "IDE_GabyCode" el tipo del archivo dependerá de su sistema operativo (x86_64 si usa linux). Opcionalmente también se provee un acceso directo apenas se descomprime la carpeta.
 
-Segundo tendre
-
-
+  Segundo tendremos que localizar el ejecutable del simulador de la Despensa que incluye la Maquina Virtual y también se encarga de vincular la pipeline entre los JSON generados por la IDE con el compilador y el propio entorno de ejecución de la VM. Para acceder a este archivo ejecutable simplemente abra la carpeta JVMGabi y dentro encontrará un archivo con nombre "JVMGabi-2.0 Linux Ready" el cual al ejecutar desplegará todo el entorno de la simulación.
       
   - #### Orden de Ejecución
+
+  A la hora de escribir o intentar escribir sus  
       
   - #### Como Ejecutar Pruebas
 
