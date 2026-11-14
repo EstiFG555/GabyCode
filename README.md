@@ -26,7 +26,7 @@ Descargar Java 26: [Link a la página](https://www.oracle.com/java/technologies/
 
 ##### Instalación de la plataforma
 
-En caso no posea el ".rar" conteniendo todas las partes de la plataforma puede obtenerlas a travez del siguiente link: [Obtener rar](todo)
+En caso no posea el ".rar" conteniendo todas las partes de la plataforma puede obtenerlas a travez del siguiente link: [Obtener rar](https://drive.google.com/drive/folders/1loRUMhCi8QVhOQVt2q1I-mdm_avvlk7M?usp=sharing)
 
 Una vez obtenido el rar correspondiente a su plataforma, lo siguiente que debe hacer es simplemente descomprimirlo en una carpeta vacia. Esto le generará una carpeta llamada "GabyCode" la cual contendrá 3 carpetas correspondientes a las distintas partes/modulos de la plataforma:
 
