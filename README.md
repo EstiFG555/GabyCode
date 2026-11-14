@@ -50,7 +50,7 @@ Cada una de estas carpetas contienen tanto el código fuente como el ejecutable 
 
   Ejecutar el IDE, escribir su programa y compilarlo.
 
-  Luego ejecutar JVMGabi, dentro del programa presionar el botón de compilar JSON desde Godot. Una vez compilado correctamente para poder ver como se ejecuta solo es necesario presionar el botón que dispara el evento que su código está esperando para funcionar, esto generará un mensaje en consola con la ejecución correcta o no del programa.
+  Luego ejecutar JVMGabi, dentro del programa presionar el botón de compilar JSON desde Godot Ahora. Una vez compilado correctamente para poder ver como se ejecuta solo es necesario presionar el botón que dispara el evento que su código está esperando para funcionar, esto generará un mensaje en consola con la ejecución correcta o no del programa.
 
   - #### Como Ejecutar Pruebas
 
@@ -64,7 +64,7 @@ Cada una de estas carpetas contienen tanto el código fuente como el ejecutable 
       4. Dentro de la carpeta encontraremos el archivo "Cierre_y_Finalización_de_Venta.json", lo seleccionamos y abrimos.
       5. Una vez abierto el código y siendo visible en el IDE, presionamos el botón de compilar o tocamos la tecla Enter.
       6. Con el código ya compilado lo siguiente en la lista es ejecutar el entorno simulado de ejecución de JVMGabi.
-      7. Una vez dentro de JVMGabi presionamos el botón de "Compilar desde JSON desde Godot", el cual compilará a bytecode el JSON que generamos y subscribirá a el evento correspondiente el ByteCode generado, de modo que cuando el evento se dispare el código que generamos será ejecutado.
+      7. Una vez dentro de JVMGabi presionamos el botón de "Compilar JSON desde Godot Ahora", el cual compilará a bytecode el JSON que generamos y subscribirá a el evento correspondiente el ByteCode generado, de modo que cuando el evento se dispare el código que generamos será ejecutado.
       8. Por ultimo para ejecutar este caso de prueba en particular disparamos el evento de cierre de vente presionando el botón "Disparar Finalizar Venta con Carrito Seleccionado", esto hará que el código se ejecute, y debería poder verse en la consola del programa los logs y la correcta ejecución del mismo.
 
       - ##### Caso N°2. Se acerca navidad.
@@ -75,7 +75,7 @@ Cada una de estas carpetas contienen tanto el código fuente como el ejecutable 
       4. Dentro de la carpeta encontraremos el archivo "Rutina_Navidad.json", lo seleccionamos y abrimos.
       5. Una vez abierto el código y siendo visible en el IDE, presionamos el botón de compilar o tocamos la tecla Enter.
       6. Con el código ya compilado lo siguiente en la lista es ejecutar el entorno simulado de ejecución de JVMGabi.
-      7. Una vez dentro de JVMGabi presionamos el botón de "Compilar desde JSON desde Godot", el cual compilará a bytecode el JSON que generamos y subscribirá a el evento correspondiente el ByteCode generado, de modo que cuando el evento se dispare el código que generamos será ejecutado.
+      7. Una vez dentro de JVMGabi presionamos el botón de "Compilar JSON desde Godot Ahora", el cual compilará a bytecode el JSON que generamos y subscribirá a el evento correspondiente el ByteCode generado, de modo que cuando el evento se dispare el código que generamos será ejecutado.
       8. Por ultimo para ejecutar este caso de prueba en particular disparamos el evento de cierre de vente presionando el botón "Disparar Evento Navidad con Lista de ID's", esto hará que el código se ejecute, y debería poder verse en la consola del programa los logs y la correcta ejecución del mismo.
 
       - ##### Caso N°3. Aplicar descuento a producto escaneado.
@@ -86,7 +86,7 @@ Cada una de estas carpetas contienen tanto el código fuente como el ejecutable 
       4. Dentro de la carpeta encontraremos el archivo "Ejemplo_Aplicar_descuento_especifico.json", lo seleccionamos y abrimos.
       5. Una vez abierto el código y siendo visible en el IDE, presionamos el botón de compilar o tocamos la tecla Enter.
       6. Con el código ya compilado lo siguiente en la lista es ejecutar el entorno simulado de ejecución de JVMGabi.
-      7. Una vez dentro de JVMGabi presionamos el botón de "Compilar desde JSON desde Godot", el cual compilará a bytecode el JSON que generamos y subscribirá a el evento correspondiente el ByteCode generado, de modo que cuando el evento se dispare el código que generamos será ejecutado.
+      7. Una vez dentro de JVMGabi presionamos el botón de "Compilar JSON desde Godot Ahora", el cual compilará a bytecode el JSON que generamos y subscribirá a el evento correspondiente el ByteCode generado, de modo que cuando el evento se dispare el código que generamos será ejecutado.
       8. Por ultimo para ejecutar este caso de prueba en particular disparamos el evento de cierre de vente presionando el botón "Disparar Escaneo con Producto Elegido", esto hará que el código se ejecute, y debería poder verse en la consola del programa los logs y la correcta ejecución del mismo.
 
       - ##### Caso N°4. Aplicar descuento potencial.
@@ -97,11 +97,13 @@ Cada una de estas carpetas contienen tanto el código fuente como el ejecutable 
       4. Dentro de la carpeta encontraremos el archivo "Descuento_Potencial.json", lo seleccionamos y abrimos.
       5. Una vez abierto el código y siendo visible en el IDE, presionamos el botón de compilar o tocamos la tecla Enter.
       6. Con el código ya compilado lo siguiente en la lista es ejecutar el entorno simulado de ejecución de JVMGabi.
-      7. Una vez dentro de JVMGabi presionamos el botón de "Compilar desde JSON desde Godot", el cual compilará a bytecode el JSON que generamos y subscribirá a el evento correspondiente el ByteCode generado, de modo que cuando el evento se dispare el código que generamos será ejecutado.
+      7. Una vez dentro de JVMGabi presionamos el botón de "Compilar JSON desde Godot Ahora", el cual compilará a bytecode el JSON que generamos y subscribirá a el evento correspondiente el ByteCode generado, de modo que cuando el evento se dispare el código que generamos será ejecutado.
       8. Por ultimo para ejecutar este caso de prueba en particular disparamos el evento de cierre de vente presionando el botón "Disparar Escaneo con Producto Elegido", esto hará que el código se ejecute, y debería poder verse en la consola del programa los logs y la correcta ejecución del mismo.
 
   - #### Consideraciones y pruebas de error
 
-    TODO.
+    Como podrá haber observado luego de ejecutar todos los casos de prueba planificados que utilizan cada uno los diversos elementos propios del lenguaje de programación desarrollado probando que todas sus funcionalidades planificadas inicaialmente han sido implementadas de manera funcional. Una cuestión que podría interesarle es leer la sección de Limitaciones dentro del trabajo de investigación adjunto para poder ver que no puede hacer la plataforma y el lenguaje, ahora si aún así le interesa puede intentar jugar con los limites de la implementación actual y testear los pequeños controles de errores que existen actualmente, y principalmente en JVMGabi y la simulación del entorno de ejecución, esto está provisto por medio de los campos editables, dentro del programa que simulador, con los cuales puede llegar a introducir ID's no existentes, productos con caracteristicas especiales, cambiar los elementos seleccionados para cerrar una compra, etc. El punto final de esto es que pueda ver la existencia de un control de errores a tiempo de ejecución con respecto a llamadas a funciones con parametros insuficientes, fallas en la vinculación de variables traidas al ambito local por los eventos (Esto debido al como solo existe un unico archivo con ByteCode en todo momento), y parametros nulos.
+
+Si bien
     
 </div>
