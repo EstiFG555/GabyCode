@@ -2,12 +2,12 @@
 	"nodos": [
 		{
 			"datos_entrada": {},
-			"id": 1,
+			"id": 1.0,
 			"operacion": "ON_SALE_FINISHED",
 			"orden_parametros": [],
 			"retorno_subrutina": {},
 			"salidas_ejecucion": [
-				3
+				3.0
 			],
 			"salidas_evento": {
 				"lista_productos": {
@@ -21,14 +21,14 @@
 			"datos_entrada": {
 				"lista_productos": {
 					"fuente": "REFERENCIA_NODO",
-					"id_origen": 1,
+					"id_origen": 1.0,
 					"puerto": "lista_productos"
 				}
 			},
-			"id": 3,
+			"id": 3.0,
 			"operacion": "CALCULATE_SALE_TOTAL",
 			"salidas_ejecucion": [
-				4
+				4.0
 			],
 			"tipo": "ACCION"
 		},
@@ -36,19 +36,19 @@
 			"datos_entrada": {
 				"lista_productos": {
 					"fuente": "REFERENCIA_NODO",
-					"id_origen": 1,
+					"id_origen": 1.0,
 					"puerto": "lista_productos"
 				},
 				"total": {
 					"fuente": "REFERENCIA_NODO",
-					"id_origen": 3,
+					"id_origen": 3.0,
 					"puerto": "total"
 				}
 			},
-			"id": 4,
+			"id": 4.0,
 			"operacion": "REGISTER_SALE",
 			"salidas_ejecucion": [
-				5
+				5.0
 			],
 			"tipo": "ACCION"
 		},
@@ -56,11 +56,11 @@
 			"datos_entrada": {
 				"total": {
 					"fuente": "REFERENCIA_NODO",
-					"id_origen": 3,
+					"id_origen": 3.0,
 					"puerto": "total"
 				}
 			},
-			"id": 5,
+			"id": 5.0,
 			"operacion": "SHOW_TOTAL",
 			"salidas_ejecucion": [],
 			"tipo": "ACCION"
