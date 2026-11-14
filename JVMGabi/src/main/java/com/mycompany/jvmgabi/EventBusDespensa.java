@@ -22,6 +22,7 @@ import java.util.Map;
 public class EventBusDespensa {
 
     public static class SalidaPuerto {
+
         public final String nombrePuerto;
         public final String tipo;
         public final String subtipo; // Opcional si tipo == "ARRAY"
@@ -34,6 +35,7 @@ public class EventBusDespensa {
     }
 
     public static class DefinicionEvento {
+
         public final String codigoOperacion;
         public final String nombreVisual;
         public final List<SalidaPuerto> salidas = new ArrayList<>();
@@ -55,6 +57,7 @@ public class EventBusDespensa {
     }
 
     public static class DefinicionAccionHost {
+
         public final String codigoOperacion;
         public final String nombreVisual;
         public final Map<String, String> entradasOrdenadas = new LinkedHashMap<>();
@@ -89,9 +92,10 @@ public class EventBusDespensa {
     }
 
     /**
-     * FUENTE ÚNICA DE LA VERDAD (SINGLE SOURCE OF TRUTH):
-     * Cualquier objeto, señal de evento o función CALL_HOST agregada aquí por los programadores
-     * de Java se exporta automáticamente a catalogo_host.json para el editor de Godot.
+     * FUENTE ÚNICA DE LA VERDAD (SINGLE SOURCE OF TRUTH): Cualquier objeto,
+     * señal de evento o función CALL_HOST agregada aquí por los programadores
+     * de Java se exporta automáticamente a catalogo_host.json para el editor de
+     * Godot.
      */
     private void inicializarCatalogoDominio() {
         // 1. Objetos del modelo de dominio reconocidos por el sistema de tipos
@@ -165,11 +169,11 @@ public class EventBusDespensa {
                     vm.inyectarDatoEvento(entry.getKey(), entry.getValue());
                 }
             }
-
-            Path archivoAEjecutar = suscripcionesBytecode.getOrDefault(nombreEvento.toUpperCase(), rutaBytecodeActiva);
-            if (archivoAEjecutar == null || !Files.exists(archivoAEjecutar)) {
-                archivoAEjecutar = buscarSalidaBytecodePorDefecto();
-            }
+            Path archivoAEjecutar = suscripcionesBytecode.getOrDefault(nombreEvento.toUpperCase(), null);
+            //Path archivoAEjecutar = suscripcionesBytecode.getOrDefault(nombreEvento.toUpperCase(), rutaBytecodeActiva);
+             //if (archivoAEjecutar == null || !Files.exists(archivoAEjecutar)) {
+              //   archivoAEjecutar = buscarSalidaBytecodePorDefecto();
+            //}
 
             if (archivoAEjecutar != null && Files.exists(archivoAEjecutar)) {
                 List<String> instrucciones = Files.readAllLines(archivoAEjecutar);
@@ -206,7 +210,9 @@ public class EventBusDespensa {
         sb.append("{\n\t\"tipos_objetos\": [\n");
         for (int i = 0; i < tiposObjetosRegistrados.size(); i++) {
             sb.append("\t\t\"").append(tiposObjetosRegistrados.get(i)).append("\"");
-            if (i < tiposObjetosRegistrados.size() - 1) sb.append(",");
+            if (i < tiposObjetosRegistrados.size() - 1) {
+                sb.append(",");
+            }
             sb.append("\n");
         }
         sb.append("\t],\n\t\"eventos\": [\n");
@@ -223,10 +229,14 @@ public class EventBusDespensa {
                     sb.append(", \"subtipo\": \"").append(sp.subtipo).append("\"");
                 }
                 sb.append(" }");
-                if (j < ev.salidas.size() - 1) sb.append(",");
+                if (j < ev.salidas.size() - 1) {
+                    sb.append(",");
+                }
             }
             sb.append("\n\t\t\t}\n\t\t}");
-            if (++evIdx < eventosRegistrados.size()) sb.append(",");
+            if (++evIdx < eventosRegistrados.size()) {
+                sb.append(",");
+            }
             sb.append("\n");
         }
         sb.append("\t],\n\t\"acciones\": [\n");
@@ -239,22 +249,30 @@ public class EventBusDespensa {
             List<String> keys = new ArrayList<>(acc.entradasOrdenadas.keySet());
             for (int j = 0; j < keys.size(); j++) {
                 sb.append("\"").append(keys.get(j)).append("\"");
-                if (j < keys.size() - 1) sb.append(", ");
+                if (j < keys.size() - 1) {
+                    sb.append(", ");
+                }
             }
             sb.append("],\n\t\t\t\"entradas\": {");
             for (int j = 0; j < keys.size(); j++) {
                 String k = keys.get(j);
                 sb.append("\n\t\t\t\t\"").append(k).append("\": \"").append(acc.entradasOrdenadas.get(k)).append("\"");
-                if (j < keys.size() - 1) sb.append(",");
+                if (j < keys.size() - 1) {
+                    sb.append(",");
+                }
             }
             sb.append("\n\t\t\t},\n\t\t\t\"salidas\": {");
             for (int j = 0; j < acc.salidas.size(); j++) {
                 SalidaPuerto sp = acc.salidas.get(j);
                 sb.append("\n\t\t\t\t\"").append(sp.nombrePuerto).append("\": { \"tipo\": \"").append(sp.tipo).append("\" }");
-                if (j < acc.salidas.size() - 1) sb.append(",");
+                if (j < acc.salidas.size() - 1) {
+                    sb.append(",");
+                }
             }
             sb.append("\n\t\t\t}\n\t\t}");
-            if (++accIdx < accionesHostRegistradas.size()) sb.append(",");
+            if (++accIdx < accionesHostRegistradas.size()) {
+                sb.append(",");
+            }
             sb.append("\n");
         }
         sb.append("\t]\n}");
@@ -270,8 +288,14 @@ public class EventBusDespensa {
         };
         for (String r : rutas) {
             File f = new File(r);
-            if (f.exists()) return f.toPath();
+            if (f.exists()) {
+                return f.toPath();
+            }
         }
         return null;
+    }
+    
+    void limpiar_memoria_Estados_vm(){
+        vm.getMemoriaEventos().clear();
     }
 }

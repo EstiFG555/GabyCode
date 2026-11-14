@@ -16,6 +16,7 @@ import java.awt.FlowLayout;
 import java.awt.Font;
 import java.awt.GridLayout;
 import java.io.File;
+import java.io.FileReader;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -310,6 +311,7 @@ public class SimuladorDespensaUI extends JFrame {
         payload.put("producto_leido", seleccionado);
 
         eventBus.publicarEvento("ON_PRODUCT_SCANNED", payload, rutaBytecodeActual);
+        eventBus.limpiar_memoria_Estados_vm();
         refrescarTablaInventario();
         sincronizarComboProductos();
     }
@@ -322,6 +324,7 @@ public class SimuladorDespensaUI extends JFrame {
         payload.put("lista_productos", carrito);
 
         eventBus.publicarEvento("ON_SALE_FINISHED", payload, rutaBytecodeActual);
+        eventBus.limpiar_memoria_Estados_vm();
         refrescarTablaInventario();
         sincronizarComboProductos();
     }
@@ -345,6 +348,7 @@ public class SimuladorDespensaUI extends JFrame {
         payload.put("lista_ids_descuento", idsNavidad);
 
         eventBus.publicarEvento("ON_CHRISTMAS_PROMO", payload, rutaBytecodeActual);
+        eventBus.limpiar_memoria_Estados_vm();
         refrescarTablaInventario();
         sincronizarComboProductos();
     }
@@ -369,6 +373,7 @@ public class SimuladorDespensaUI extends JFrame {
         agregarLog("\n------------------------------------------------------------");
         agregarLog("🔔 [EVENT BUS] Ejecución In Situ con contexto inyectado: " + payload);
         eventBus.publicarEvento("CUSTOM_EVENT", payload, rutaBytecodeActual);
+        eventBus.limpiar_memoria_Estados_vm();
         refrescarTablaInventario();
         sincronizarComboProductos();
     }
@@ -383,7 +388,19 @@ public class SimuladorDespensaUI extends JFrame {
                 agregarLog("⚠️ No se encontró flujo_prueba.json en la ruta relativa del compilador.");
                 return;
             }
-
+            
+            FileReader reader = new FileReader("../GabyCodeCompilador/GabyCodeCompiler/src/main/java/archivos_prueba/flujo_prueba.json");
+            String todoElArchivo = reader.readAllAsString();
+            String nombreEvento = null;
+            
+            if(-1 != todoElArchivo.indexOf("ON_PRODUCT_SCANNED")){
+                nombreEvento = "ON_PRODUCT_SCANNED";
+            } else if (-1 != todoElArchivo.indexOf("ON_CHRISTMAS_PROMO")){
+                nombreEvento = "ON_CHRISTMAS_PROMO";
+            } else if (-1 != todoElArchivo.indexOf("ON_SALE")){
+                nombreEvento = "ON_SALE";
+            }
+            
             String userHome = System.getProperty("user.home");
             String gsonJar = userHome + File.separator + ".m2" + File.separator + "repository"
                     + File.separator + "com" + File.separator + "google" + File.separator + "code"
@@ -401,6 +418,7 @@ public class SimuladorDespensaUI extends JFrame {
             proc.waitFor();
 
             rutaBytecodeActual = outFile.toPath();
+            eventBus.suscribirEvento(nombreEvento, rutaBytecodeActual);
             agregarLog("\n⚙️ [Compilador Ejecutado sobre el JSON de Godot]:\n" + salidaCompilador);
         } catch (Exception ex) {
             agregarLog("⚠️ Error al invocar el compilador automáticamente: " + ex.getMessage());
